@@ -60,6 +60,9 @@ jobs:
       - name: Pack ROM...
         run: |
           sudo bash packROM.sh
+          echo "VỊ TRÍ HIỆN TẠI"
+          $pwd
+          ls
 
       - name: Setup Rclone...
         run: |
