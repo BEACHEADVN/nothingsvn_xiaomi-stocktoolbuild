@@ -60,20 +60,93 @@ jobs:
       - name: Pack ROM...
         run: |
           sudo bash packROM.sh
-          echo "VỊ TRÍ HIỆN TẠI"
-          $pwd
-          ls
 
-      - name: Setup Rclone...
+      - name: Install 7zip & Jq
         run: |
-          sudo -E bash uploadROM.sh setup "${{ secrets.GH_TOKEN }}" "${{ secrets.GH_REPO }}" "${{ secrets.RCLONE_TOKEN_PATH }}"
-          
-      - name: Upload ROM...
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full jq curl
+
+      # ===== CHIA NHỎ FILE NẾU > 9GB =====
+      - name: Split Large File
+        id: split
         run: |
-          sudo -E bash uploadROM.sh
+          FILE="${{ steps.pack.outputs.file }}"
+          SIZE=$(stat -c%s "$FILE")
+          LIMIT=$((9 * 1024 * 1024 * 1024))
       
-      - name: Update Database and Notificaton to Telegram
+          if [ "$SIZE" -gt "$LIMIT" ]; then
+            echo "File > 9GB, đang chia nhỏ bằng 7z..."
+            7z a -t7z -mx=0 -v9g "${FILE}.7z" "$FILE"
+            echo "split=true" >> $GITHUB_OUTPUT
+          else
+            echo "File <= 9GB, giữ nguyên khối."
+            echo "split=false" >> $GITHUB_OUTPUT
+          fi
+
+      # ===== UPLOAD PIXELDRAIN =====
+      - name: Upload to Pixeldrain
+        id: pd
         env:
-          TELEGRAM_TOKEN: ${{ secrets.TG_TOKEN }}
+          PD_API_KEY: ${{ secrets.PIXELDRAIN_API_KEY }}
         run: |
-          
+          FILE="${{ steps.pack.outputs.file }}"
+
+          if [ "${{ steps.split.outputs.split }}" = "true" ]; then
+            IDS=""
+            LINKS=""
+            COUNT=1
+
+            for PART in *.7z.*; do
+              echo "Uploading part: $PART"
+              RESPONSE=$(curl -s -u ":$PD_API_KEY" \
+                -F "file=@${PART}" \
+                https://pixeldrain.com/api/file)
+
+              ID=$(echo "$RESPONSE" | jq -r '.id')
+              if [ "$ID" = "null" ] || [ -z "$ID" ]; then
+                echo "❌ Upload failed for $PART"
+                echo "$RESPONSE"
+                exit 1
+              fi
+
+              if [ -z "$LINKS" ]; then
+                IDS="$ID"
+                LINKS="<a href=\"https://pixeldrain.com/u/$ID\">Part $COUNT</a>"
+              else
+                IDS="$IDS,$ID"
+                LINKS="$LINKS | <a href=\"https://pixeldrain.com/u/$ID\">Part $COUNT</a>"
+              fi
+              COUNT=$((COUNT + 1))
+            done
+            echo "links=$LINKS" >> $GITHUB_OUTPUT
+          else
+            # Upload file nguyên vẹn dưới 9GB
+            RESPONSE=$(curl -s -u ":$PD_API_KEY" \
+              -F "file=@${FILE}" \
+              https://pixeldrain.com/api/file)
+
+            ID=$(echo "$RESPONSE" | jq -r '.id')
+            if [ "$ID" = "null" ] || [ -z "$ID" ]; then
+              echo "❌ Upload failed"
+              echo "$RESPONSE"
+              exit 1
+            fi
+            echo "links=<a href=\"https://pixeldrain.com/u/$ID\">Download</a>" >> $GITHUB_OUTPUT
+          fi
+
+      # ===== TELEGRAM NOTIFY =====
+      - name: Update Database and Notification to Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.TG_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          FILE="${{ steps.pack.outputs.file }}"
+          LINKS="${{ steps.pd.outputs.links }}"
+
+          TEXT="<b>🚀 New Xiaomi ROM Built Successfully!</b>%0A%0A📦 <code>$FILE</code>%0A🔗 $LINKS"
+
+          curl -s -X POST \
+            "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d chat_id="${CHAT_ID}" \
+            -d text="$TEXT" \
+            -d parse_mode="HTML"
