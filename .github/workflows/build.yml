@@ -47,17 +47,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y p7zip-full jq curl python3-pip android-sdk-build-tools
           pip3 install requests beautifulsoup4
-          # Tạo liên kết (symlink) nếu hệ thống cài vào thư mục mặc định của gói ứng dụng
-          if [ -f /usr/lib/android-sdk/build-tools/debian/zipalign ]; then
-            sudo ln -sf /usr/lib/android-sdk/build-tools/debian/zipalign /usr/bin/zipalign
-          fi
+          echo "⬇️ Đang tải bộ Build-Tools rút gọn từ Google Android Linux..."
+          # Tải trực tiếp bộ công cụ build-tools chính thức từ máy chủ Google (bản ổn định)
+          curl -sLo build-tools.zip https://dl.google.com/android/repository/build-tools_r34.0.0-linux.zip
           
-          # Kiểm tra xem zipalign hệ thống đã nhận diện được chưa
+          echo "📦 Đang giải nén zipalign..."
+          # Chỉ giải nén duy nhất file zipalign ra thư mục /usr/bin để tiết kiệm không gian
+          sudo unzip -j build-tools.zip "android-14/zipalign" -d /usr/bin/
+          
+          # Cấp quyền thực thi và dọn dẹp file zip thừa
+          sudo chmod +x /usr/bin/zipalign
+          rm -f build-tools.zip
+          
+          # Kiểm tra tính hoạt động của công cụ
           if command -v zipalign &> /dev/null; then
-            echo "✅ Zipalign chính thức từ apt đã hoạt động!"
+            echo "✅ Zipalign chính thức từ Google đã hoạt động!"
             zipalign -v | head -n 1 || true
           else
-            echo "❌ Không thể khởi tạo zipalign từ hệ thống apt!"
+            echo "❌ Cài đặt zipalign thất bại!"
             exit 1
           fi
         
