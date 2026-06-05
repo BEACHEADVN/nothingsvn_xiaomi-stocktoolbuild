@@ -47,13 +47,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y p7zip-full jq curl python3-pip
           pip3 install requests beautifulsoup4
-          # Tự động tìm zipalign trong Android SDK và đưa ra hệ thống
-          ZIPALIGN_PATH=$(find /usr/local/lib/android/sdk/build-tools/ -name zipalign | head -n 1)
-          if [ -n "$ZIPALIGN_PATH" ]; then
-            sudo ln -sf "$ZIPALIGN_PATH" /usr/bin/zipalign
-            echo "✅ Đã kích hoạt zipalign từ: $ZIPALIGN_PATH"
+          # Tải zipalign binary chính thức đã được build sẵn cho Linux x86_64
+          echo "⬇️ Đang tải zipalign..."
+          sudo curl -sLo /usr/bin/zipalign "https://raw.githubusercontent.com/XayahSuSuSu/Android-Command-Line-Tools/main/linux/x86_64/bin/zipalign"
+          
+          # Cấp quyền thực thi cho zipalign
+          sudo chmod +x /usr/bin/zipalign
+          
+          # Kiểm tra xem zipalign đã hoạt động chưa
+          if command -v zipalign &> /dev/null; then
+            echo "✅ Zipalign đã được cài đặt thành công!"
+            zipalign -v | head -n 1 || true
           else
-            echo "❌ Không tìm thấy zipalign trong bộ SDK có sẵn!"
+            echo "❌ Cài đặt zipalign thất bại!"
             exit 1
           fi
         
