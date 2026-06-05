@@ -47,19 +47,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y p7zip-full jq curl python3-pip
           pip3 install requests beautifulsoup4
-          echo "⬇️ Đang tải trực tiếp file chạy zipalign..."
-          # Tải bản binary chuẩn x86_64 ổn định tuyệt đối
-          sudo curl -sLo /usr/bin/zipalign "https://github.com/m0b7ar/android-binaries/raw/master/bin/zipalign"
+          echo "⬇️ Cài đặt zipalign chính thức qua NPM..."
+          # Cài đặt gói zipalign-cli toàn cục hệ thống
+          sudo npm install -g zipalign-cli --unsafe-perm
           
-          # Cấp quyền thực thi hệ thống
-          sudo chmod +x /usr/bin/zipalign
+          # Tạo liên kết đưa lệnh ra thư mục chạy mặc định của hệ thống
+          sudo ln -sf $(which zipalign) /usr/bin/zipalign
           
-          # Kiểm tra xem hệ thống đã nhận diện chưa
+          # Kiểm tra tính hoạt động của công cụ
           if command -v zipalign &> /dev/null; then
-            echo "✅ Zipalign đã được kích hoạt thành công!"
+            echo "✅ Zipalign đã được cài đặt thành công qua NPM!"
             zipalign -v | head -n 1 || true
           else
-            echo "❌ Cài đặt zipalign thất bại!"
+            echo "❌ Không thể khởi tạo zipalign!"
             exit 1
           fi
         
