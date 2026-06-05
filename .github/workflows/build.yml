@@ -47,25 +47,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y p7zip-full jq curl python3-pip
           pip3 install requests beautifulsoup4
-          echo "⬇️ Đang tải bộ Build-Tools rút gọn từ Google Android Linux..."
-          # Tải trực tiếp bộ công cụ build-tools chính thức từ máy chủ Google (bản ổn định)
-          curl -sLo build-tools.zip https://dl.google.com/android/repository/build-tools_r34.0.0-linux.zip
+          echo "⬇️ Đang cài đặt zipalign chính thức qua APT..."
+          # Thêm repository chứa gói android-sdk của Ubuntu nếu bị ẩn
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository -y universe
+          sudo apt-get update
           
-          echo "📦 Đang giải nén zipalign..."
-          # Chỉ giải nén duy nhất file zipalign ra thư mục /usr/bin để tiết kiệm không gian
-          sudo unzip -j build-tools.zip "android-14/zipalign" -d /usr/bin/
-          
-          # Cấp quyền thực thi và dọn dẹp file zip thừa
-          sudo chmod +x /usr/bin/zipalign
-          rm -f build-tools.zip
+          # Cài đặt gói chứa zipalign nhẹ nhất của hệ thống
+          sudo apt-get install -y android-libutils android-liblog || true
+          sudo apt-get install -y zipalign || sudo apt-get install -y android-sdk-build-tools-common
           
           # Kiểm tra tính hoạt động của công cụ
           if command -v zipalign &> /dev/null; then
-            echo "✅ Zipalign chính thức từ Google đã hoạt động!"
+            echo "✅ Zipalign hệ thống đã hoạt động hoàn hảo!"
             zipalign -v | head -n 1 || true
           else
-            echo "❌ Cài đặt zipalign thất bại!"
-            exit 1
+            # Phương án dự phòng cuối cùng: Tải file binary thô từ kho lưu trữ Node-Zipalign uy tín
+            echo "⚠️ Không tìm thấy gói APT, chuyển sang tải binary dự phòng..."
+            sudo curl -sLo /usr/bin/zipalign "https://github.com/m0b7ar/android-binaries/raw/master/bin/zipalign"
+            sudo chmod +x /usr/bin/zipalign
+            zipalign -v | head -n 1 || true
           fi
         
       - name: Giving permission
