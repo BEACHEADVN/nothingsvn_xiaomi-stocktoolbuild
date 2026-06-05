@@ -87,7 +87,7 @@ exists() {
 }
 
 abort() {
-    yellow "--> Missing $1 ! installing..."
+    echo "--> Missing $1 ! installing..."
     apt install $1 -y
 }
 
