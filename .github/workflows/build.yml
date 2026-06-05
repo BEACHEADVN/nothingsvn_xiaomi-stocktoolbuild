@@ -45,21 +45,19 @@ jobs:
         run: |
           sudo bash setup.sh
           sudo apt-get update
-          sudo apt-get install -y p7zip-full jq curl python3-pip
+          sudo apt-get install -y p7zip-full jq curl python3-pip android-sdk-build-tools
           pip3 install requests beautifulsoup4
-          echo "⬇️ Đang tải zipalign chuẩn từ Build-Tools..."
-          # Tải trực tiếp bản zipalign x86_64 chuẩn từ dự án termux/command-line-tools ổn định
-          sudo curl -sLo /usr/bin/zipalign "https://raw.githubusercontent.com/skylot/jadx/master/jadx-cli/src/main/resources/bin/linux/zipalign" || \
-          sudo curl -sLo /usr/bin/zipalign "https://github.com/BeanyMam/android-sdk-binaries/raw/master/zipalign"
+          # Tạo liên kết (symlink) nếu hệ thống cài vào thư mục mặc định của gói ứng dụng
+          if [ -f /usr/lib/android-sdk/build-tools/debian/zipalign ]; then
+            sudo ln -sf /usr/lib/android-sdk/build-tools/debian/zipalign /usr/bin/zipalign
+          fi
           
-          # Cấp quyền thực thi lại cho file vừa tải
-          sudo chmod +x /usr/bin/zipalign
-          
-          # Kiểm tra kiểm tra tính toàn vẹn của lệnh
-          if zipalign --help >/dev/null 2>&1 || [ $? -eq 2 ] || [ $? -eq 0 ]; then
-            echo "✅ Zipalign đã hoạt động chính xác và không bị lỗi 404!"
+          # Kiểm tra xem zipalign hệ thống đã nhận diện được chưa
+          if command -v zipalign &> /dev/null; then
+            echo "✅ Zipalign chính thức từ apt đã hoạt động!"
+            zipalign -v | head -n 1 || true
           else
-            echo "❌ Zipalign tải về vẫn bị lỗi cấu trúc!"
+            echo "❌ Không thể khởi tạo zipalign từ hệ thống apt!"
             exit 1
           fi
         
