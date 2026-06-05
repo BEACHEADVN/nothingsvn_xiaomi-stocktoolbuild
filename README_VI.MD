@@ -22,6 +22,7 @@
 | Tính năng | Mô tả |
 |-----------|-------|
 | 📦 **Google Apps** | Cài sẵn GApps cho các bản ROM nội địa (Domestic ROM) |
+| 🧰 **KaoriOS Toolbox** | Bộ công cụ nâng cao để tuỳ chỉnh và tinh chỉnh hệ thống |
 | 🔄 **Hỗ trợ đa định dạng** | Hỗ trợ `payload.bin`, `new.dat.br` (Brotli), và `super.img` (ROM EU) |
 | 📱 **Mod đa hệ điều hành** | Mod cho HyperOS 1, HyperOS 2, HyperOS 3 |
 | 🧩 **A-only & V-AB** | Hỗ trợ cả sơ đồ phân vùng A-only và Virtual A/B |
@@ -62,8 +63,6 @@ nothingsvn_xiaomi-toolbuild/
 │   ├── 📂 ddevice/          # Script nhận diện thiết bị & thông tin ROM
 │   ├── 📂 imgextractor/     # Trình giải nén ảnh EXT4
 │   ├── 📂 modfile/
-│   │   ├── 📂 MIUI13/       # Mod dành cho MIUI 13
-│   │   ├── 📂 MIUI14/       # Mod dành cho MIUI 14
 │   │   ├── 📂 OS1/          # Mod HyperOS 1.0
 │   │   ├── 📂 OS2/          # Mod HyperOS 2.0
 │   │   ├── 📂 OS3/          # Mod HyperOS 3.0
@@ -170,7 +169,7 @@ Xin gửi lời cảm ơn chân thành đến tất cả mọi người đã gó
 | [MaiAFK](https://t.me/maiphp) | Ý tưởng website & code web server |
 | [Mốc](https://t.me/jerryx0x) | Phương pháp mod & build |
 | [summert](https://t.me/ntai15) | Hỗ trợ code & giải quyết vấn đề |
-| [BHLNK](https://t.me/bhlnk) | Phương pháp spoof cho AI fixing |
+| [zuri1503](https://t.me/zuri1503) | Hỗ trợ code & giải quyết vấn đề |
 
 ### 💰 Nhà tài trợ
 

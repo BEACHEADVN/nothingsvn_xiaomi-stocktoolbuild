@@ -22,6 +22,7 @@
 | Feature | Description |
 |---------|-------------|
 | 📦 **Google Apps** | Pre-installed GApps for Domestic ROM variants |
+| 🧰 **KaoriOS Toolbox** | Advanced system modification & tuning toolkit |
 | 🔄 **Multi-format Support** | Supports `payload.bin`, `new.dat.br` (Brotli), and `super.img` (EU ROMs) |
 | 📱 **Multi-OS Mods** | Mods for HyperOS 1, HyperOS 2, HyperOS 3 |
 | 🧩 **A-only & V-AB** | Supports both A-only and Virtual A/B partition schemes |
@@ -168,6 +169,7 @@ A huge thank you to everyone who made this project possible:
 | [MaiAFK](https://t.me/maiphp) | Website concept & web server code |
 | [Mốc](https://t.me/jerryx0x) | Mod & build methods |
 | [summert](https://t.me/ntai15) | Coding support & issue resolution |
+| [zuri1503](https://t.me/zuri1503) | Coding support & issue resolution |
 
 ### 💰 Sponsors
 
