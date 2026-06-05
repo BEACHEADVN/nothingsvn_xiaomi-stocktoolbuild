@@ -114,6 +114,8 @@ jobs:
           
           with open(os.environ['GITHUB_ENV'], 'a') as f:
               f.write(f"AUTO_INPUT_URL={high_speed_url}\n")
+              # Lưu chính xác tên file cào được từ hệ thống vào môi trường GITHUB_ENV
+              f.write(f"ROM_FILE={package_name}\n")
           EOF
 
       - name: Build ROM...
@@ -135,13 +137,21 @@ jobs:
       - name: Split Large File
         id: split
         run: |
-          FILE="${{ steps.pack.outputs.file }}"
-          SIZE=$(stat -c%s "$FILE")
+          # Lấy chính xác tên file được chuyển tiếp từ bước Fetch ROM ở trên xuống
+          FILE="${{ env.ROM_FILE }}"
+          
+          if [ -z "$FILE" ]; then
+            echo "❌ Không tìm thấy tên file ROM hợp lệ từ bước Fetch!"
+            exit 1
+          fi
+
+          echo "File ROM gốc dự kiến xử lý: $FILE"
+          SIZE=$(sudo stat -c%s "$FILE")
           LIMIT=$((9 * 1024 * 1024 * 1024))
       
           if [ "$SIZE" -gt "$LIMIT" ]; then
             echo "File > 9GB, đang chia nhỏ bằng 7z..."
-            7z a -t7z -mx=0 -v9g "${FILE}.7z" "$FILE"
+            sudo 7z a -t7z -mx=0 -v9g "${FILE}.7z" "$FILE"
             echo "split=true" >> $GITHUB_OUTPUT
           else
             echo "File <= 9GB, giữ nguyên khối."
@@ -154,7 +164,7 @@ jobs:
         env:
           PD_API_KEY: ${{ secrets.PIXELDRAIN_API_KEY }}
         run: |
-          FILE="${{ steps.pack.outputs.file }}"
+          FILE="${{ env.ROM_FILE }}"
 
           if [ "${{ steps.split.outputs.split }}" = "true" ]; then
             IDS=""
@@ -205,7 +215,7 @@ jobs:
           BOT_TOKEN: ${{ secrets.TG_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          FILE="${{ steps.pack.outputs.file }}"
+          FILE="${{ env.ROM_FILE }}"
           LINKS="${{ steps.pd.outputs.links }}"
 
           TEXT="<b>🚀 New Xiaomi ROM Built Successfully!</b>%0A%0A📦 <code>$FILE</code>%0A🔗 $LINKS"
