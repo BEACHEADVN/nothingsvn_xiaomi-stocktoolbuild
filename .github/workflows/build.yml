@@ -10,8 +10,10 @@ jobs:
       - name: Clean All Unused file,application
         run: |
           docker rmi `docker images -q` || true
-          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/sudo apt/sources.list.d || true
-          sudo apt -y purge azure-cli ghc* zulu* hhvm llvm* firefox google* dotnet* powershell mysql* php* || true
+          # Sửa chính xác đường dẫn sources.list.d và không xóa cấu hình hệ thống /etc/php
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/apt/sources.list.d || true
+          # Loại bỏ php* và mysql* khỏi danh sách gỡ cài đặt (purge) để tránh kẹt dpkg ở bước sau
+          sudo apt -y purge azure-cli ghc* zulu* hhvm llvm* firefox google* dotnet* powershell || true
           sudo apt -y autoremove --purge || true
           sudo apt -y autoclean || true
           sudo apt clean || true
