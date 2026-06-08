@@ -45,21 +45,33 @@ jobs:
         run: |
           sudo bash setup.sh
           sudo apt-get update
-          sudo apt-get install -y p7zip-full jq curl python3-pip
+          sudo apt-get install -y p7zip-full jq curl python3-pip unzip
           pip3 install requests beautifulsoup4
-          echo "⬇️ Cài đặt zipalign chính thức qua NPM..."
-          # Cài đặt gói zipalign-cli toàn cục hệ thống
-          sudo npm install -g zipalign-cli --unsafe-perm
           
-          # Tạo liên kết đưa lệnh ra thư mục chạy mặc định của hệ thống
-          sudo ln -sf $(which zipalign) /usr/bin/zipalign
+          echo "⬇️ Đang tải Android Command Line Tools từ Google..."
+          curl -sLo cmd-tools.zip "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+          
+          echo "📦 Đang cấu hình sdkmanager..."
+          unzip -q cmd-tools.zip -d cmd-tools-dir
+          mkdir -p android-sdk/cmdline-tools
+          mv cmd-tools-dir/cmdline-tools android-sdk/cmdline-tools/latest
+          
+          echo "🤖 Đang tải Build-Tools 34.0.0 chính chủ từ Google Android SDK..."
+          echo "y" | ./android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$(pwd)/android-sdk "build-tools;34.0.0" > /dev/null
+          
+          echo "✅ Đang đưa zipalign vào hệ thống..."
+          sudo cp android-sdk/build-tools/34.0.0/zipalign /usr/bin/zipalign
+          sudo chmod 777 /usr/bin/zipalign
+          
+          # Dọn dẹp bộ cài tạm
+          rm -rf cmd-tools.zip cmd-tools-dir android-sdk
           
           # Kiểm tra tính hoạt động của công cụ
           if command -v zipalign &> /dev/null; then
-            echo "✅ Zipalign đã được cài đặt thành công qua NPM!"
+            echo "✅ Zipalign từ Android SDK đã sẵn sàng hoạt động!"
             zipalign -v | head -n 1 || true
           else
-            echo "❌ Không thể khởi tạo zipalign!"
+            echo "❌ Lỗi: Không tìm thấy zipalign trong hệ thống!"
             exit 1
           fi
         
