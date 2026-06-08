@@ -63,6 +63,17 @@ jobs:
           sudo cp android-sdk/build-tools/34.0.0/zipalign /usr/bin/zipalign
           sudo chmod 777 /usr/bin/zipalign
           
+          # CỨU CÁNH: Sửa lỗi thiếu thư viện libc++.so bằng cách tạo symlink hệ thống
+          echo "🔗 Đang sửa liên kết thư viện libc++..."
+          LIBCXX_PATH=$(find /usr/lib/x86_64-linux-gnu/ -name "libc++.so.1" | head -n 1)
+          if [ -n "$LIBCXX_PATH" ]; then
+            sudo ln -sf "$LIBCXX_PATH" /usr/lib/x86_64-linux-gnu/libc++.so
+            echo "✅ Đã tạo liên kết: /usr/lib/x86_64-linux-gnu/libc++.so -> $LIBCXX_PATH"
+          else
+            # Phương án dự phòng nếu tìm ở thư mục khác
+            sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /usr/lib/x86_64-linux-gnu/libc++.so || true
+          fi
+          
           # Dọn dẹp bộ cài tạm
           rm -rf cmd-tools.zip cmd-tools-dir android-sdk
           
