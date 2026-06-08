@@ -63,21 +63,28 @@ jobs:
           sudo cp android-sdk/build-tools/34.0.0/zipalign /usr/bin/zipalign
           sudo chmod 777 /usr/bin/zipalign
           
-          # CỨU CÁNH: Sửa lỗi thiếu thư viện libc++.so bằng cách tạo symlink hệ thống
-          echo "🔗 Đang sửa liên kết thư viện libc++..."
-          LIBCXX_PATH=$(find /usr/lib/x86_64-linux-gnu/ -name "libc++.so.1" | head -n 1)
-          if [ -n "$LIBCXX_PATH" ]; then
-            sudo ln -sf "$LIBCXX_PATH" /usr/lib/x86_64-linux-gnu/libc++.so
-            echo "✅ Đã tạo liên kết: /usr/lib/x86_64-linux-gnu/libc++.so -> $LIBCXX_PATH"
+          # ĐẢM BẢO FIX TRIỆT ĐỂ: Tìm libc++.so.1 ở mọi ngóc ngách và tạo symlink ra thư mục dùng chung lõi
+          echo "🔗 Đang sửa liên kết thư viện libc++ toàn cục..."
+          REAL_LIBCXX=$(find /usr/lib/ -name "libc++.so.1" | head -n 1)
+          if [ -n "$REAL_LIBCXX" ]; then
+            sudo ln -sf "$REAL_LIBCXX" /usr/lib/libc++.so
+            sudo ln -sf "$REAL_LIBCXX" /lib/libc++.so
+            sudo ln -sf "$REAL_LIBCXX" /usr/lib/x86_64-linux-gnu/libc++.so || true
+            echo "✅ Đã phủ cấu trúc liên kết từ: $REAL_LIBCXX"
           else
-            # Phương án dự phòng nếu tìm ở thư mục khác
-            sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /usr/lib/x86_64-linux-gnu/libc++.so || true
+            # Phương án dự phòng cứng nếu lệnh find không ra
+            sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /usr/lib/libc++.so
+            sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /lib/libc++.so
           fi
+          
+          # Cập nhật lại bộ nhớ đệm thư viện liên kết động của Linux
+          sudo ldconfig
           
           # Dọn dẹp bộ cài tạm
           rm -rf cmd-tools.zip cmd-tools-dir android-sdk
           
-          # Kiểm tra tính hoạt động của công cụ
+          # Kiểm tra tính hoạt động của công cụ kèm nạp thư viện chạy
+          export LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
           if command -v zipalign &> /dev/null; then
             echo "✅ Zipalign từ Android SDK đã sẵn sàng hoạt động!"
             zipalign -v | head -n 1 || true
