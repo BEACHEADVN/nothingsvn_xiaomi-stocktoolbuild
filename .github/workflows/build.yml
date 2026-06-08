@@ -45,7 +45,7 @@ jobs:
         run: |
           sudo bash setup.sh
           sudo apt-get update
-          sudo apt-get install -y p7zip-full jq curl python3-pip unzip
+          sudo apt-get install -y p7zip-full jq curl python3-pip unzip libc++1
           pip3 install requests beautifulsoup4
           
           echo "⬇️ Đang tải Android Command Line Tools từ Google..."
