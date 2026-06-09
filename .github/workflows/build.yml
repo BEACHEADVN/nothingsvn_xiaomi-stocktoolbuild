@@ -49,7 +49,7 @@ jobs:
         run: |
           sudo bash setup.sh
           sudo apt-get update
-          sudo apt-get install -y p7zip-full jq curl python3-pip unzip libc++1 libc++-dev bsdextrautils
+          sudo apt-get install -y p7zip-full jq curl python3-pip unzip libc++1 libc++-dev bsdextrautils zstd bc zip xmlstarlet
           pip3 install requests beautifulsoup4
           
           echo "⬇️ Đang tải Android Command Line Tools từ Google..."
@@ -61,8 +61,10 @@ jobs:
           mv cmd-tools-dir/cmdline-tools android-sdk/cmdline-tools/latest
           
           echo "🤖 Đang tải Build-Tools 34.0.0 chính chủ từ Google Android SDK..."
-          echo "y" | ./android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$(pwd)/android-sdk "build-tools;34.0.0" > /dev/null
-          
+          echo "y" | ./android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$(pwd)/android-sdk "build-tools;34.0.0" "platform-tools" > /dev/null
+
+          echo "$(pwd)/android-sdk/build-tools/34.0.0" >> $GITHUB_PATH
+          echo "$(pwd)/android-sdk/platform-tools" >> $GITHUB_PATH
           echo "➕ Thêm Build-Tools vào PATH..."
           echo "$(pwd)/android-sdk/build-tools/34.0.0" >> $GITHUB_PATH
           sudo ldconfig
