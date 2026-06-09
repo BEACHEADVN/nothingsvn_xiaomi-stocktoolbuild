@@ -88,7 +88,25 @@ exists() {
 
 abort() {
     echo "--> Missing $1 ! installing..."
-    apt install $1 -y
+
+    case "$1" in
+        zipalign)
+            return 0
+            ;;
+
+        aapt)
+            return 0
+            ;;
+
+        xmlstarlet)
+            sudo snap install xmlstarlet
+            ;;
+
+        *)
+            sudo apt-get update
+            sudo apt-get install -y "$1"
+            ;;
+    esac
 }
 
 check() {
