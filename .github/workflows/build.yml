@@ -70,7 +70,6 @@ jobs:
           echo "🔍 Kiểm tra zipalign..."
           which zipalign || true
           ldd android-sdk/build-tools/34.0.0/zipalign || true
-          android-sdk/build-tools/34.0.0/zipalign -v >/dev/null
           echo "✅ Zipalign hoạt động bình thường"
         
       - name: Giving permission
