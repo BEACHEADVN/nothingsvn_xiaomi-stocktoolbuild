@@ -114,6 +114,8 @@ jobs:
           ldd android-sdk/build-tools/34.0.0/zipalign || true
 
           echo "✅ Zipalign hoạt động bình thường"
+          sudo ln -sf "$(pwd)/android-sdk/build-tools/34.0.0/zipalign" /usr/local/bin/zipalign
+          sudo ln -sf "$(pwd)/android-sdk/build-tools/34.0.0/aapt" /usr/local/bin/aapt
 
       - name: Giving permission
         run: |
@@ -193,6 +195,7 @@ jobs:
         env:
           INPUT_URL: ${{ env.AUTO_INPUT_URL }}
         run: |
+          export PATH="$GITHUB_WORKSPACE/android-sdk/build-tools/34.0.0:$PATH"
           sudo bash build.sh "$INPUT_URL"
 
       - name: Pack ROM...
