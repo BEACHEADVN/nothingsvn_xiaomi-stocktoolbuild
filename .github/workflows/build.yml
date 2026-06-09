@@ -1,4 +1,4 @@
-name: NothingsVN Xiaomi ROM Build Matrix
+name: NothingsVN Xiaomi ROM Stock tool Build Matrix
 
 on:
   workflow_dispatch:
