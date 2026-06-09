@@ -48,69 +48,73 @@ jobs:
       - name: Install Stuff
         run: |
           sudo bash setup.sh
+
           sudo apt-get update
           sudo apt-get install -y p7zip-full jq curl python3-pip unzip libc++1 libc++-dev bsdextrautils zstd bc zip
+
           pip3 install requests beautifulsoup4
 
           echo "📦 Installing xmlstarlet..."
 
           if ! command -v xmlstarlet >/dev/null 2>&1; then
-          sudo add-apt-repository universe -y || true
-          sudo apt-get update
+            sudo add-apt-repository universe -y || true
+            sudo apt-get update
 
-          if sudo apt-get install -y xmlstarlet; then
-          echo "✅ Installed xmlstarlet via apt"
-          else
-          echo "⚠️ Apt failed, trying snap..."
+            if sudo apt-get install -y xmlstarlet; then
+              echo "✅ Installed xmlstarlet via apt"
+            else
+              echo "⚠️ Apt failed, trying snap..."
 
-          if sudo snap install xmlstarlet; then
-          echo "✅ Installed xmlstarlet via snap"
-          sudo ln -sf /snap/bin/xmlstarlet /usr/local/bin/xmlstarlet || true
-           else
-          echo "⚠️ Snap failed, building from source..."
+              if sudo snap install xmlstarlet; then
+                echo "✅ Installed xmlstarlet via snap"
+                sudo ln -sf /snap/bin/xmlstarlet /usr/local/bin/xmlstarlet || true
+              else
+                echo "⚠️ Snap failed, building from source..."
 
-          wget -qO xmlstarlet.tar.gz https://sourceforge.net/projects/xmlstar/files/xmlstarlet/1.6.1/xmlstarlet-1.6.1.tar.gz/download
+                wget -qO xmlstarlet.tar.gz https://sourceforge.net/projects/xmlstar/files/xmlstarlet/1.6.1/xmlstarlet-1.6.1.tar.gz/download
 
-          tar -xzf xmlstarlet.tar.gz
-          cd xmlstarlet-1.6.1
+                tar -xzf xmlstarlet.tar.gz
+                cd xmlstarlet-1.6.1
 
-          ./configure
-          make -j$(nproc)
+                ./configure
+                make -j$(nproc)
 
-          sudo make install
+                sudo make install
 
-          cd ..
-          rm -rf xmlstarlet-1.6.1 xmlstarlet.tar.gz
+                cd ..
+                rm -rf xmlstarlet-1.6.1 xmlstarlet.tar.gz
 
-          echo "✅ Installed xmlstarlet from source"
-       fi
-       fi
-       fi
+                echo "✅ Installed xmlstarlet from source"
+              fi
+            fi
+          fi
 
-         xmlstarlet --version
-          
+          xmlstarlet --version || true
+
           echo "⬇️ Đang tải Android Command Line Tools từ Google..."
           curl -sLo cmd-tools.zip "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
-          
+
           echo "📦 Đang cấu hình sdkmanager..."
           unzip -q cmd-tools.zip -d cmd-tools-dir
           mkdir -p android-sdk/cmdline-tools
           mv cmd-tools-dir/cmdline-tools android-sdk/cmdline-tools/latest
-          
+
           echo "🤖 Đang tải Build-Tools 34.0.0 chính chủ từ Google Android SDK..."
           echo "y" | ./android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$(pwd)/android-sdk "build-tools;34.0.0" "platform-tools" > /dev/null
 
           echo "$(pwd)/android-sdk/build-tools/34.0.0" >> $GITHUB_PATH
           echo "$(pwd)/android-sdk/platform-tools" >> $GITHUB_PATH
-          echo "➕ Thêm Build-Tools vào PATH..."
-          echo "$(pwd)/android-sdk/build-tools/34.0.0" >> $GITHUB_PATH
+
           sudo ldconfig
           export PATH="$(pwd)/android-sdk/build-tools/34.0.0:$PATH"
+
           echo "🔍 Kiểm tra zipalign..."
           which zipalign || true
+          which aapt || true
           ldd android-sdk/build-tools/34.0.0/zipalign || true
+
           echo "✅ Zipalign hoạt động bình thường"
-        
+
       - name: Giving permission
         run: |
           sudo chmod 777 -R *
