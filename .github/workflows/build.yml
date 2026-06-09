@@ -48,11 +48,10 @@ jobs:
       - name: Install Stuff
         run: |
           sudo bash setup.sh
-          sudo snap install xmlstarlet
           sudo apt-get update
-          sudo apt-get install -y p7zip-full jq curl python3-pip unzip libc++1
+          # Bỏ gói libc++abi1 gây lỗi, chỉ giữ lại libc++1 và các công cụ cần thiết
+          sudo apt-get install -y p7zip-full jq curl python3-pip unzip libc++1 bsdmainutils
           pip3 install requests beautifulsoup4
-          sudo apt-get install -y libc++1 libc++abi1
           
           echo "⬇️ Đang tải Android Command Line Tools từ Google..."
           curl -sLo cmd-tools.zip "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
@@ -69,20 +68,27 @@ jobs:
           sudo cp android-sdk/build-tools/34.0.0/zipalign /usr/bin/zipalign
           sudo chmod 777 /usr/bin/zipalign
           
+          # TẠO SYMLINK LIÊN KẾT THƯ VIỆN TOÀN CỤC (ÉP ZIPALIGN PHẢI NHẬN)
           echo "🔗 Đang sửa liên kết thư viện libc++ toàn cục..."
           REAL_LIBCXX=$(find /usr/lib/ -name "libc++.so.1" | head -n 1)
           if [ -n "$REAL_LIBCXX" ]; then
             sudo ln -sf "$REAL_LIBCXX" /usr/lib/libc++.so
             sudo ln -sf "$REAL_LIBCXX" /lib/libc++.so
             sudo ln -sf "$REAL_LIBCXX" /usr/lib/x86_64-linux-gnu/libc++.so || true
+            echo "✅ Đã phủ cấu trúc liên kết từ: $REAL_LIBCXX"
           else
+            # Phương án dự phòng cứng nếu lệnh find không ra
             sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /usr/lib/libc++.so
             sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /lib/libc++.so
           fi
           
+          # Cập nhật bộ nhớ đệm thư viện hệ thống
           sudo ldconfig
+          
+          # Dọn dẹp bộ cài tạm
           rm -rf cmd-tools.zip cmd-tools-dir android-sdk
           
+          # Khai báo biến môi trường tạm thời cho luồng chạy hiện tại và kiểm tra
           export LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
           if command -v zipalign &> /dev/null; then
             echo "✅ Zipalign từ Android SDK đã sẵn sàng hoạt động!"
