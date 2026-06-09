@@ -1,4 +1,4 @@
-name: NothingsVN Xiaomi ROM Build
+name: NothingsVN Xiaomi ROM Stocktool Build
 
 on:
   workflow_dispatch:
