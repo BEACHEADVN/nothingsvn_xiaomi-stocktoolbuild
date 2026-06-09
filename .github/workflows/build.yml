@@ -232,7 +232,7 @@ jobs:
           fi
 
       # ===== UPLOAD PIXELDRAIN =====
-      - name: Upload to Pixeldrain
+            - name: Upload to Pixeldrain
         id: pd
         env:
           PD_API_KEY: ${{ secrets.PIXELDRAIN_API_KEY }}
@@ -259,50 +259,55 @@ jobs:
 
               if [ -z "$LINKS" ]; then
                 IDS="$ID"
-                LINKS="<a href=\"https://pixeldrain.com/u/$ID\">Part $COUNT</a>"
+                LINKS="<a href='https://pixeldrain.com/u/$ID'>Part $COUNT</a>"
               else
                 IDS="$IDS,$ID"
-                LINKS="$LINKS | <a href=\"https://pixeldrain.com/u/$ID\">Part $COUNT</a>"
+                LINKS="$LINKS | <a href='https://pixeldrain.com/u/$ID'>Part $COUNT</a>"
               fi
+
               COUNT=$((COUNT + 1))
             done
+
             echo "links=$LINKS" >> $GITHUB_OUTPUT
+
           else
             RESPONSE=$(curl -s -u ":$PD_API_KEY" \
               -F "file=@${FILE}" \
               https://pixeldrain.com/api/file)
 
             ID=$(echo "$RESPONSE" | jq -r '.id')
+
             if [ "$ID" = "null" ] || [ -z "$ID" ]; then
               echo "❌ Upload failed"
               echo "$RESPONSE"
               exit 1
             fi
-            echo "links=<a href=\"https://pixeldrain.com/u/$ID\">Download</a>" >> $GITHUB_OUTPUT
+
+            echo "links=<a href='https://pixeldrain.com/u/$ID'>Download</a>" >> $GITHUB_OUTPUT
           fi
 
       # ===== TELEGRAM NOTIFY =====
       - name: Update Database and Notification to Telegram
-  env:
-    BOT_TOKEN: ${{ secrets.TG_TOKEN }}
-    CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-  run: |
-    FILE="${{ env.ROM_FILE }}"
-    LINKS="${{ steps.pd.outputs.links }}"
-    REGION="${{ matrix.region }}"
+        env:
+          BOT_TOKEN: ${{ secrets.TG_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          FILE="${{ env.ROM_FILE }}"
+          LINKS="${{ steps.pd.outputs.links }}"
+          REGION="${{ matrix.region }}"
 
-    echo "LINKS=$LINKS"
+          echo "LINKS=$LINKS"
 
-    TEXT="<b>🚀 New Xiaomi [${REGION}] ROM Built Successfully!</b>
+          TEXT="<b>🚀 New Xiaomi [${REGION}] ROM Built Successfully!</b>
 
-📦 <code>${FILE}</code>
+       📦 <code>${FILE}</code>
 
-🔗 ${LINKS}"
+       🔗 ${LINKS}"
 
-    echo "$TEXT"
+          echo "$TEXT"
 
-    curl -s -X POST \
-      "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-      --data-urlencode chat_id="${CHAT_ID}" \
-      --data-urlencode text="$TEXT" \
-      --data-urlencode parse_mode="HTML"
+          curl -s -X POST \
+            "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${CHAT_ID}" \
+            --data-urlencode "text=${TEXT}" \
+            --data-urlencode "parse_mode=HTML"
