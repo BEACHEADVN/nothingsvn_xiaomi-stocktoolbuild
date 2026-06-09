@@ -50,7 +50,7 @@ jobs:
           sudo bash setup.sh
           sudo apt-get update
           # Bỏ gói libc++abi1 gây lỗi, chỉ giữ lại libc++1 và các công cụ cần thiết
-          sudo apt-get install -y p7zip-full jq curl python3-pip unzip libc++1 bsdmainutils
+          sudo apt-get install -y p7zip-full jq curl python3-pip unzip libc++1 bsdextrautils
           pip3 install requests beautifulsoup4
           
           echo "⬇️ Đang tải Android Command Line Tools từ Google..."
