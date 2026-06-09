@@ -49,7 +49,7 @@ jobs:
         run: |
           sudo bash setup.sh
           sudo apt-get update
-          sudo apt-get install -y p7zip-full jq curl python3-pip unzip libc++1 bsdextrautils
+          sudo apt-get install -y p7zip-full jq curl python3-pip unzip libc++1 libc++-dev bsdextrautils
           pip3 install requests beautifulsoup4
           
           echo "⬇️ Đang tải Android Command Line Tools từ Google..."
@@ -63,41 +63,15 @@ jobs:
           echo "🤖 Đang tải Build-Tools 34.0.0 chính chủ từ Google Android SDK..."
           echo "y" | ./android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$(pwd)/android-sdk "build-tools;34.0.0" > /dev/null
           
-          echo "✅ Đang đưa zipalign vào hệ thống..."
-          sudo cp android-sdk/build-tools/34.0.0/zipalign /usr/bin/zipalign
-          sudo chmod 777 /usr/bin/zipalign
-          
-          echo "🔗 Đang sửa liên kết thư viện libc++ toàn cục..."
-          REAL_LIBCXX=$(find /usr/lib/ -name "libc++.so.1" | head -n 1)
-          if [ -n "$REAL_LIBCXX" ]; then
-            sudo ln -sf "$REAL_LIBCXX" /usr/lib/libc++.so
-            sudo ln -sf "$REAL_LIBCXX" /lib/libc++.so
-            sudo ln -sf "$REAL_LIBCXX" /usr/lib/x86_64-linux-gnu/libc++.so || true
-            echo "✅ Đã phủ cấu trúc liên kết từ: $REAL_LIBCXX"
-          else
-            sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /usr/lib/libc++.so
-            sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /lib/libc++.so
-          fi
-          
+          echo "➕ Thêm Build-Tools vào PATH..."
+          echo "$(pwd)/android-sdk/build-tools/34.0.0" >> $GITHUB_PATH
           sudo ldconfig
-          
-          # ===================================================================
-          # CHÌA KHÓA VÀNG: Ép đường dẫn thư viện vào GITHUB_ENV để các bước sau dùng được
-          # ===================================================================
-          echo "LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-          
-          # Dọn dẹp bộ cài tạm
-          rm -rf cmd-tools.zip cmd-tools-dir android-sdk
-          
-          # Kiểm tra tính hoạt động tại chỗ (Nạp tạm biến để test)
-          export LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
-          if command -v zipalign &> /dev/null; then
-            echo "✅ Zipalign từ Android SDK đã sẵn sàng hoạt động!"
-            zipalign -v | head -n 1 || true
-          else
-            echo "❌ Lỗi: Không tìm thấy zipalign trong hệ thống!"
-            exit 1
-          fi
+          export PATH="$(pwd)/android-sdk/build-tools/34.0.0:$PATH"
+          echo "🔍 Kiểm tra zipalign..."
+          which zipalign || true
+          ldd android-sdk/build-tools/34.0.0/zipalign || true
+          android-sdk/build-tools/34.0.0/zipalign -h >/dev/null
+          echo "✅ Zipalign hoạt động bình thường"
         
       - name: Giving permission
         run: |
