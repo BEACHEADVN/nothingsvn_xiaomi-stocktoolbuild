@@ -48,6 +48,7 @@ jobs:
       - name: Install Stuff
         run: |
           sudo bash setup.sh
+          sudo snap install xmlstarlet"
           sudo apt-get update
           sudo apt-get install -y p7zip-full jq curl python3-pip unzip libc++1
           pip3 install requests beautifulsoup4
