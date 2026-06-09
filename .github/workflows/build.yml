@@ -1,18 +1,22 @@
-name: NothingsVN Xiaomi China ROM Build
+name: NothingsVN Xiaomi ROM Build Matrix
 
 on:
   workflow_dispatch:
 
 jobs:
-  Initialize:
+  Build-ROM:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        region: [China, EEA] # Chạy song song 2 luồng độc lập
+      fail-fast: false # Luồng này lỗi không làm luồng kia dừng theo
+    name: Build ROM (${{ matrix.region }})
+    
     steps:
       - name: Clean All Unused file,application
         run: |
           docker rmi `docker images -q` || true
-          # Sửa chính xác đường dẫn sources.list.d và không xóa cấu hình hệ thống /etc/php
           sudo rm -rf /usr/share/dotnet /etc/mysql /etc/apt/sources.list.d || true
-          # Loại bỏ php* và mysql* khỏi danh sách gỡ cài đặt (purge) để tránh kẹt dpkg ở bước sau
           sudo apt -y purge azure-cli ghc* zulu* hhvm llvm* firefox google* dotnet* powershell || true
           sudo apt -y autoremove --purge || true
           sudo apt -y autoclean || true
@@ -29,7 +33,7 @@ jobs:
 
       - name: Set up Time
         run: |
-          echo "Setting Vienam timezone"
+          echo "Setting Vietnam timezone"
           sudo timedatectl set-timezone Asia/Ho_Chi_Minh
           
       - name: Install OpenJDK
@@ -63,27 +67,20 @@ jobs:
           sudo cp android-sdk/build-tools/34.0.0/zipalign /usr/bin/zipalign
           sudo chmod 777 /usr/bin/zipalign
           
-          # ĐẢM BẢO FIX TRIỆT ĐỂ: Tìm libc++.so.1 ở mọi ngóc ngách và tạo symlink ra thư mục dùng chung lõi
           echo "🔗 Đang sửa liên kết thư viện libc++ toàn cục..."
           REAL_LIBCXX=$(find /usr/lib/ -name "libc++.so.1" | head -n 1)
           if [ -n "$REAL_LIBCXX" ]; then
             sudo ln -sf "$REAL_LIBCXX" /usr/lib/libc++.so
             sudo ln -sf "$REAL_LIBCXX" /lib/libc++.so
             sudo ln -sf "$REAL_LIBCXX" /usr/lib/x86_64-linux-gnu/libc++.so || true
-            echo "✅ Đã phủ cấu trúc liên kết từ: $REAL_LIBCXX"
           else
-            # Phương án dự phòng cứng nếu lệnh find không ra
             sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /usr/lib/libc++.so
             sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /lib/libc++.so
           fi
           
-          # Cập nhật lại bộ nhớ đệm thư viện liên kết động của Linux
           sudo ldconfig
-          
-          # Dọn dẹp bộ cài tạm
           rm -rf cmd-tools.zip cmd-tools-dir android-sdk
           
-          # Kiểm tra tính hoạt động của công cụ kèm nạp thư viện chạy
           export LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
           if command -v zipalign &> /dev/null; then
             echo "✅ Zipalign từ Android SDK đã sẵn sàng hoạt động!"
@@ -97,7 +94,7 @@ jobs:
         run: |
           sudo chmod 777 -R *
 
-      - name: Fetch Latest China Recovery ROM URL
+      - name: Fetch Latest ROM URL
         id: fetch_rom
         run: |
           python3 - <<EOF
@@ -110,11 +107,13 @@ jobs:
               "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
           }
           
+          target_region = "${{ matrix.region }}"
           base_url = "https://hyperosroms.com"
           model_url = f"{base_url}/model/myron"
           
           res = requests.get(model_url, headers=headers, timeout=15)
           if res.status_code != 200:
+              print(f"❌ Không thể truy cập danh sách ROM vùng {target_region}")
               exit(1)
               
           soup = BeautifulSoup(res.text, 'html.parser')
@@ -127,13 +126,15 @@ jobs:
                   region_text = cells[1].get_text(strip=True)
                   type_text = cells[2].get_text(strip=True).lower()
                   
-                  if region_text == "China" and type_text == "recovery":
+                  # Nhận diện chính xác khu vực tương ứng của matrix luồng chạy
+                  if region_text == target_region and type_text == "recovery":
                       link_tag = cells[0].find('a') or cells[-1].find('a')
                       if link_tag and 'href' in link_tag.attrs:
                           sub_page_url = base_url + link_tag['href'] if link_tag['href'].startswith('/') else link_tag['href']
                           break
 
           if not sub_page_url:
+              print(f"❌ Không tìm thấy sub-page ROM phù hợp cho {target_region}")
               exit(1)
 
           res_sub = requests.get(sub_page_url, headers=headers, timeout=15)
@@ -152,6 +153,7 @@ jobs:
                   package_name = match.group(1)
 
           if not package_name:
+              print(f"❌ Không tìm thấy tên gói ZIP hợp lệ cho {target_region}")
               exit(1)
 
           version_code = sub_page_url.split('/')[-1]
@@ -159,7 +161,6 @@ jobs:
           
           with open(os.environ['GITHUB_ENV'], 'a') as f:
               f.write(f"AUTO_INPUT_URL={high_speed_url}\n")
-              # Lưu chính xác tên file cào được từ hệ thống vào môi trường GITHUB_ENV
               f.write(f"ROM_FILE={package_name}\n")
           EOF
 
@@ -182,7 +183,6 @@ jobs:
       - name: Split Large File
         id: split
         run: |
-          # Lấy chính xác tên file được chuyển tiếp từ bước Fetch ROM ở trên xuống
           FILE="${{ env.ROM_FILE }}"
           
           if [ -z "$FILE" ]; then
@@ -240,7 +240,6 @@ jobs:
             done
             echo "links=$LINKS" >> $GITHUB_OUTPUT
           else
-            # Upload file nguyên vẹn dưới 9GB
             RESPONSE=$(curl -s -u ":$PD_API_KEY" \
               -F "file=@${FILE}" \
               https://pixeldrain.com/api/file)
@@ -262,8 +261,9 @@ jobs:
         run: |
           FILE="${{ env.ROM_FILE }}"
           LINKS="${{ steps.pd.outputs.links }}"
+          REGION="${{ matrix.region }}"
 
-          TEXT="<b>🚀 New Xiaomi ROM Built Successfully!</b>%0A%0A📦 <code>$FILE</code>%0A🔗 $LINKS"
+          TEXT="<b>🚀 New Xiaomi [${REGION}] ROM Built Successfully!</b>%0A%0A📦 <code>$FILE</code>%0A🔗 $LINKS"
 
           curl -s -X POST \
             "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
