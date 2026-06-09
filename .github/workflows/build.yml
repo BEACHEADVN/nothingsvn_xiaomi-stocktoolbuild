@@ -8,9 +8,14 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        region: [China, EEA] # Chạy song song 2 luồng độc lập
-      fail-fast: false # Luồng này lỗi không làm luồng kia dừng theo
-    name: Build ROM (${{ matrix.region }})
+        device: [myron, socrates]
+        region: [China, EEA]
+        # Loại trừ luồng socrates + EEA để không bị chạy thừa và báo lỗi
+        exclude:
+          - device: socrates
+            region: EEA
+      fail-fast: false
+    name: Build ROM (${{ matrix.device }} - ${{ matrix.region }})
     
     steps:
       - name: Clean All Unused file,application
@@ -134,13 +139,14 @@ jobs:
               "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
           }
           
+          target_device = "${{ matrix.device }}"
           target_region = "${{ matrix.region }}"
           base_url = "https://hyperosroms.com"
-          model_url = f"{base_url}/model/myron"
+          model_url = f"{base_url}/model/{target_device}"
           
           res = requests.get(model_url, headers=headers, timeout=15)
           if res.status_code != 200:
-              print(f"❌ Không thể truy cập danh sách ROM vùng {target_region}")
+              print(f"❌ Không thể truy cập danh sách ROM thiết bị {target_device} vùng {target_region}")
               exit(1)
               
           soup = BeautifulSoup(res.text, 'html.parser')
@@ -153,7 +159,6 @@ jobs:
                   region_text = cells[1].get_text(strip=True)
                   type_text = cells[2].get_text(strip=True).lower()
                   
-                  # Nhận diện chính xác khu vực tương ứng của matrix luồng chạy
                   if region_text == target_region and type_text == "recovery":
                       link_tag = cells[0].find('a') or cells[-1].find('a')
                       if link_tag and 'href' in link_tag.attrs:
@@ -161,7 +166,7 @@ jobs:
                           break
 
           if not sub_page_url:
-              print(f"❌ Không tìm thấy sub-page ROM phù hợp cho {target_region}")
+              print(f"❌ Không tìm thấy sub-page ROM phù hợp cho {target_device} ({target_region})")
               exit(1)
 
           res_sub = requests.get(sub_page_url, headers=headers, timeout=15)
@@ -180,7 +185,7 @@ jobs:
                   package_name = match.group(1)
 
           if not package_name:
-              print(f"❌ Không tìm thấy tên gói ZIP hợp lệ cho {target_region}")
+              print(f"❌ Không tìm thấy tên gói ZIP hợp lệ cho {target_device}")
               exit(1)
 
           version_code = sub_page_url.split('/')[-1]
@@ -284,7 +289,7 @@ jobs:
             echo "links=<a href='https://pixeldrain.com/u/$ID'>Download</a>" >> $GITHUB_OUTPUT
           fi
 
-      # ===== TELEGRAM NOTIFY (VIẾT LẠI HOÀN TOÀN KHÔNG DÙNG BIẾN CHUỖI YAML) =====
+      # ===== TELEGRAM NOTIFY =====
       - name: Update Database and Notification to Telegram
         env:
           BOT_TOKEN: ${{ secrets.TG_TOKEN }}
@@ -292,11 +297,12 @@ jobs:
         run: |
           FILE="${{ env.ROM_FILE }}"
           LINKS="${{ steps.pd.outputs.links }}"
+          DEVICE="${{ matrix.device }}"
           REGION="${{ matrix.region }}"
 
           # Sử dụng heredoc (cat << 'EOF') của Linux để tạo nội dung văn bản an toàn 100%
           TEXT=$(cat << EOF
-          <b>🚀 New Redmi K90 Pro Max | POCO F8 Ultra [${REGION}] ROM Built Successfully!</b>
+          <b>🚀 New Xiaomi [${DEVICE^^} - ${REGION}] ROM Built Successfully!</b>
 
           📦 <code>${FILE}</code>
 
