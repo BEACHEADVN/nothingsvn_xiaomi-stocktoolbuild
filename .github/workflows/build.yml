@@ -49,8 +49,12 @@ jobs:
         run: |
           sudo bash setup.sh
           sudo apt-get update
-          sudo apt-get install -y p7zip-full jq curl python3-pip unzip libc++1 libc++-dev bsdextrautils zstd bc zip xmlstarlet
+          sudo apt-get install -y p7zip-full jq curl python3-pip unzip libc++1 libc++-dev bsdextrautils zstd bc zip
           pip3 install requests beautifulsoup4
+
+          sudo add-apt-repository universe -y
+          sudo apt-get update
+          sudo apt-get install -y xmlstarlet
           
           echo "⬇️ Đang tải Android Command Line Tools từ Google..."
           curl -sLo cmd-tools.zip "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
