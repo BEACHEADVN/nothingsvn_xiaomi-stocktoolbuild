@@ -49,7 +49,6 @@ jobs:
         run: |
           sudo bash setup.sh
           sudo apt-get update
-          # Bỏ gói libc++abi1 gây lỗi, chỉ giữ lại libc++1 và các công cụ cần thiết
           sudo apt-get install -y p7zip-full jq curl python3-pip unzip libc++1 bsdextrautils
           pip3 install requests beautifulsoup4
           
@@ -68,7 +67,6 @@ jobs:
           sudo cp android-sdk/build-tools/34.0.0/zipalign /usr/bin/zipalign
           sudo chmod 777 /usr/bin/zipalign
           
-          # TẠO SYMLINK LIÊN KẾT THƯ VIỆN TOÀN CỤC (ÉP ZIPALIGN PHẢI NHẬN)
           echo "🔗 Đang sửa liên kết thư viện libc++ toàn cục..."
           REAL_LIBCXX=$(find /usr/lib/ -name "libc++.so.1" | head -n 1)
           if [ -n "$REAL_LIBCXX" ]; then
@@ -77,18 +75,21 @@ jobs:
             sudo ln -sf "$REAL_LIBCXX" /usr/lib/x86_64-linux-gnu/libc++.so || true
             echo "✅ Đã phủ cấu trúc liên kết từ: $REAL_LIBCXX"
           else
-            # Phương án dự phòng cứng nếu lệnh find không ra
             sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /usr/lib/libc++.so
             sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /lib/libc++.so
           fi
           
-          # Cập nhật bộ nhớ đệm thư viện hệ thống
           sudo ldconfig
+          
+          # ===================================================================
+          # CHÌA KHÓA VÀNG: Ép đường dẫn thư viện vào GITHUB_ENV để các bước sau dùng được
+          # ===================================================================
+          echo "LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" >> $GITHUB_ENV
           
           # Dọn dẹp bộ cài tạm
           rm -rf cmd-tools.zip cmd-tools-dir android-sdk
           
-          # Khai báo biến môi trường tạm thời cho luồng chạy hiện tại và kiểm tra
+          # Kiểm tra tính hoạt động tại chỗ (Nạp tạm biến để test)
           export LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
           if command -v zipalign &> /dev/null; then
             echo "✅ Zipalign từ Android SDK đã sẵn sàng hoạt động!"
