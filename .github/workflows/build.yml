@@ -283,18 +283,26 @@ jobs:
 
       # ===== TELEGRAM NOTIFY =====
       - name: Update Database and Notification to Telegram
-        env:
-          BOT_TOKEN: ${{ secrets.TG_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          FILE="${{ env.ROM_FILE }}"
-          LINKS="${{ steps.pd.outputs.links }}"
-          REGION="${{ matrix.region }}"
+  env:
+    BOT_TOKEN: ${{ secrets.TG_TOKEN }}
+    CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+  run: |
+    FILE="${{ env.ROM_FILE }}"
+    LINKS="${{ steps.pd.outputs.links }}"
+    REGION="${{ matrix.region }}"
 
-          TEXT="<b>🚀 New Xiaomi [${REGION}] ROM Built Successfully!</b>%0A%0A📦 <code>$FILE</code>%0A🔗 $LINKS"
+    echo "LINKS=$LINKS"
 
-          curl -s -X POST \
-            "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-            -d chat_id="${CHAT_ID}" \
-            -d text="$TEXT" \
-            -d parse_mode="HTML"
+    TEXT="<b>🚀 New Xiaomi [${REGION}] ROM Built Successfully!</b>
+
+📦 <code>${FILE}</code>
+
+🔗 ${LINKS}"
+
+    echo "$TEXT"
+
+    curl -s -X POST \
+      "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+      --data-urlencode chat_id="${CHAT_ID}" \
+      --data-urlencode text="$TEXT" \
+      --data-urlencode parse_mode="HTML"
