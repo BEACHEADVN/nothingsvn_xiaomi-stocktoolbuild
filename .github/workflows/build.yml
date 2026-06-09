@@ -232,7 +232,7 @@ jobs:
           fi
 
       # ===== UPLOAD PIXELDRAIN =====
-            - name: Upload to Pixeldrain
+      - name: Upload to Pixeldrain
         id: pd
         env:
           PD_API_KEY: ${{ secrets.PIXELDRAIN_API_KEY }}
@@ -264,7 +264,6 @@ jobs:
                 IDS="$IDS,$ID"
                 LINKS="$LINKS | <a href='https://pixeldrain.com/u/$ID'>Part $COUNT</a>"
               fi
-
               COUNT=$((COUNT + 1))
             done
 
@@ -276,7 +275,6 @@ jobs:
               https://pixeldrain.com/api/file)
 
             ID=$(echo "$RESPONSE" | jq -r '.id')
-
             if [ "$ID" = "null" ] || [ -z "$ID" ]; then
               echo "❌ Upload failed"
               echo "$RESPONSE"
@@ -300,9 +298,9 @@ jobs:
 
           TEXT="<b>🚀 New Xiaomi [${REGION}] ROM Built Successfully!</b>
 
-       📦 <code>${FILE}</code>
+📦 <code>${FILE}</code>
 
-       🔗 ${LINKS}"
+🔗 ${LINKS}"
 
           echo "$TEXT"
 
