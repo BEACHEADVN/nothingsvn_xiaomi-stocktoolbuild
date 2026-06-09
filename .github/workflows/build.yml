@@ -284,7 +284,7 @@ jobs:
             echo "links=<a href='https://pixeldrain.com/u/$ID'>Download</a>" >> $GITHUB_OUTPUT
           fi
 
-      # ===== TELEGRAM NOTIFY =====
+      # ===== TELEGRAM NOTIFY (VIẾT LẠI HOÀN TOÀN KHÔNG DÙNG BIẾN CHUỖI YAML) =====
       - name: Update Database and Notification to Telegram
         env:
           BOT_TOKEN: ${{ secrets.TG_TOKEN }}
@@ -294,16 +294,17 @@ jobs:
           LINKS="${{ steps.pd.outputs.links }}"
           REGION="${{ matrix.region }}"
 
-          echo "LINKS=$LINKS"
+          # Sử dụng heredoc (cat << 'EOF') của Linux để tạo nội dung văn bản an toàn 100%
+          TEXT=$(cat << EOF
+          <b>🚀 New Xiaomi [${REGION}] ROM Built Successfully!</b>
 
-          TEXT="<b>🚀 New Xiaomi [${REGION}] ROM Built Successfully!</b>
+          📦 <code>${FILE}</code>
 
-📦 <code>${FILE}</code>
+          🔗 ${LINKS}
+          EOF
+          )
 
-🔗 ${LINKS}"
-
-          echo "$TEXT"
-
+          # Gửi tin nhắn lên Telegram
           curl -s -X POST \
             "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${CHAT_ID}" \
