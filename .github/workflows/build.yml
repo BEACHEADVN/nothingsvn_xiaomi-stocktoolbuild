@@ -296,7 +296,7 @@ jobs:
 
           # Sử dụng heredoc (cat << 'EOF') của Linux để tạo nội dung văn bản an toàn 100%
           TEXT=$(cat << EOF
-          <b>🚀 New Xiaomi [${REGION}] ROM Built Successfully!</b>
+          <b>🚀 New Redmi K90 Pro Max | POCO F8 Ultra [${REGION}] ROM Built Successfully!</b>
 
           📦 <code>${FILE}</code>
 
