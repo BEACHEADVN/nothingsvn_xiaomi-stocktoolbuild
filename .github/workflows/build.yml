@@ -208,36 +208,6 @@ jobs:
           sudo bash packROM.sh
           echo "VỊ TRÍ HIỆN TẠI"
           ls
-          
-          FILE="${{ env.ROM_FILE }}"
-          if [ -f "$FILE" ]; then
-            echo "📂 Đang bung file zip ra để tìm super.img..."
-            mkdir -p zip_tmp
-            sudo unzip -q "$FILE" -d zip_tmp/
-            
-            # Sử dụng lệnh find để tìm kiếm file super.img (bất kể vị trí thư mục con và hoa/thường)
-            SUPER_PATH=$(sudo find zip_tmp -type f -iname "super.img" | head -n 1)
-            
-            if [ -n "$SUPER_PATH" ] && [ -f "$SUPER_PATH" ]; then
-              echo "📦 Đã tìm thấy super.img tại đường dẫn: $SUPER_PATH"
-              echo "🗜️ Đang tiến hành nén bằng zstd..."
-              sudo zstd --rm -1 -T0 "$SUPER_PATH"
-              
-              echo "🗜️ Đóng gói lại thành file zip mới..."
-              sudo rm -f "$FILE"
-              cd zip_tmp
-              sudo zip -r -q -0 "../$FILE" ./*
-              cd ..
-              sudo rm -rf zip_tmp
-              echo "✅ Đã đóng gói xong file zip chứa super.img.zst"
-            else
-              echo "⚠️ Không tìm thấy bất kỳ file super.img nào bên trong file zip!"
-              sudo rm -rf zip_tmp
-            fi
-          else
-            echo "❌ Không tìm thấy file zip được tạo ra từ packROM.sh"
-            exit 1
-          fi
 
       - name: Install 7zip & Jq
         run: |
