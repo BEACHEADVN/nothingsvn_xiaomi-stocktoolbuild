@@ -93,21 +93,110 @@ jobs:
         run: |
           sudo bash packROM.sh
 
-      - name: Setup Rclone...
+      - name: Install 7zip & Jq
         run: |
-          sudo -E bash uploadROM.sh setup "${{ secrets.GH_TOKEN }}" "${{ secrets.GH_REPO }}" "${{ secrets.RCLONE_TOKEN_PATH }}"
-          
-      - name: Upload ROM...
-        run: |
-          python notify.py upload "${{ github.repository }}" "${{ inputs.input_url }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
-          sudo -E bash uploadROM.sh
-      
-      - name: Success Notification
-        if: success()
-        run: |
-          python notify.py success "${{ github.repository }}" "${{ inputs.input_url }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full jq curl
 
-      - name: Failure Notification
-        if: failure()
+      # ===== CHIA NHỎ FILE NẾU > 9GB =====
+      - name: Split Large File
+        id: split
         run: |
-          python notify.py fail "${{ github.repository }}" "${{ inputs.input_url }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
+          FILE="${{ env.ROM_FILE }}"
+          
+          if [ -z "$FILE" ]; then
+            echo "❌ Không tìm thấy tên file ROM hợp lệ từ bước Fetch!"
+            exit 1
+          fi
+
+          echo "File ROM gốc dự kiến xử lý: $FILE"
+          SIZE=$(sudo stat -c%s "$FILE")
+          LIMIT=$((9 * 1024 * 1024 * 1024))
+      
+          if [ "$SIZE" -gt "$LIMIT" ]; then
+            echo "File > 9GB, đang chia nhỏ bằng 7z..."
+            sudo 7z a -t7z -mx=0 -v9g "${FILE}.7z" "$FILE"
+            echo "split=true" >> $GITHUB_OUTPUT
+          else
+            echo "File <= 9GB, giữ nguyên khối."
+            echo "split=false" >> $GITHUB_OUTPUT
+          fi
+
+      # ===== UPLOAD PIXELDRAIN =====
+      - name: Upload to Pixeldrain
+        id: pd
+        env:
+          PD_API_KEY: ${{ secrets.PIXELDRAIN_API_KEY }}
+        run: |
+          FILE="${{ env.ROM_FILE }}"
+
+          if [ "${{ steps.split.outputs.split }}" = "true" ]; then
+            IDS=""
+            LINKS=""
+            COUNT=1
+
+            for PART in *.7z.*; do
+              echo "Uploading part: $PART"
+              RESPONSE=$(curl -s -u ":$PD_API_KEY" \
+                -F "file=@${PART}" \
+                https://pixeldrain.com/api/file)
+
+              ID=$(echo "$RESPONSE" | jq -r '.id')
+              if [ "$ID" = "null" ] || [ -z "$ID" ]; then
+                echo "❌ Upload failed for $PART"
+                echo "$RESPONSE"
+                exit 1
+              fi
+
+              if [ -z "$LINKS" ]; then
+                IDS="$ID"
+                LINKS="<a href='https://pixeldrain.com/u/$ID'>Part $COUNT</a>"
+              else
+                IDS="$IDS,$ID"
+                LINKS="$LINKS | <a href='https://pixeldrain.com/u/$ID'>Part $COUNT</a>"
+              fi
+              COUNT=$((COUNT + 1))
+            done
+
+            echo "links=$LINKS" >> $GITHUB_OUTPUT
+
+          else
+            RESPONSE=$(curl -s -u ":$PD_API_KEY" \
+              -F "file=@${FILE}" \
+              https://pixeldrain.com/api/file)
+
+            ID=$(echo "$RESPONSE" | jq -r '.id')
+            if [ "$ID" = "null" ] || [ -z "$ID" ]; then
+              echo "❌ Upload failed"
+              echo "$RESPONSE"
+              exit 1
+            fi
+
+            echo "links=<a href='https://pixeldrain.com/u/$ID'>Download</a>" >> $GITHUB_OUTPUT
+          fi
+
+      # ===== TELEGRAM NOTIFY =====
+      - name: Notification to Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.TG_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          FILE="${{ env.ROM_FILE }}"
+          LINKS="${{ steps.pd.outputs.links }}"
+          DEVICE="${{ matrix.device }}"
+          REGION="${{ matrix.region }}"
+
+          TEXT=$(cat << EOF
+          <b>🚀 New Xiaomi [${DEVICE^^} - ${REGION}] ROM Built Successfully!</b>
+
+          📦 <code>${FILE}</code>
+
+          🔗 ${LINKS}
+          EOF
+          )
+
+          curl -s -X POST \
+            "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${CHAT_ID}" \
+            --data-urlencode "text=${TEXT}" \
+            --data-urlencode "parse_mode=HTML"
