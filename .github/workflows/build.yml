@@ -202,7 +202,6 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/android-sdk/build-tools/34.0.0:$PATH"
           sudo bash build.sh "$INPUT_URL"
 
-      # ===== PACK ROM & XỬ LÝ NÉN ZSTD CHO SUPER.IMG (DÙNG LỆNH TÌM KIẾM ĐỘNG) =====
       - name: Pack ROM...
         run: |
           sudo bash packROM.sh
