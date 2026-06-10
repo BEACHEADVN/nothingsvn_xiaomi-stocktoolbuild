@@ -206,6 +206,31 @@ jobs:
       - name: Pack ROM...
         run: |
           sudo bash packROM.sh
+          FILE="${{ env.ROM_FILE }}"
+          if [ -f "$FILE" ]; then
+            echo "📂 Đang bung file zip ra để xử lý super.img..."
+            mkdir -p zip_tmp
+            sudo unzip -q "$FILE" -d zip_tmp/
+            
+            if [ -f "zip_tmp/super.img" ]; then
+              echo "📦 Tìm thấy super.img, đang tiến hành nén zstd..."
+              sudo zstd --rm -1 -T0 zip_tmp/super.img
+              
+              echo "🗜️ Đóng gói lại thành file zip mới..."
+              sudo rm -f "$FILE"
+              cd zip_tmp
+              sudo zip -r -q -0 "../$FILE" ./*
+              cd ..
+              sudo rm -rf zip_tmp
+              echo "✅ Đã đóng gói xong file zip chứa super.img.zst"
+            else
+              echo "⚠️ Không tìm thấy super.img bên trong file zip!"
+              sudo rm -rf zip_tmp
+            fi
+          else
+            echo "❌ Không tìm thấy file zip được tạo ra từ packROM.sh"
+            exit 1
+          fi
 
       - name: Install 7zip & Jq
         run: |
