@@ -58,17 +58,17 @@ jobs:
           sudo bash setup.sh
           echo "🔧 Fix libc++ for simg2img"
 
-          sudo find / -name "libc++.so*" 2>/dev/null || true
+          LIBCXX=$(find "$GITHUB_WORKSPACE" -name "libc++.so" | head -n1)
 
-          sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /usr/lib/x86_64-linux-gnu/libc++.so || true
-          sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /usr/lib/libc++.so || true
-          sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /lib/libc++.so || true
+          echo "Found libc++: $LIBCXX"
 
-          echo "LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
-
-          export LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+          sudo cp "$LIBCXX" /usr/lib/libc++.so
+          sudo cp "$LIBCXX" /usr/lib/x86_64-linux-gnu/libc++.so
 
           sudo ldconfig
+
+          ls -l /usr/lib/libc++.so
+          ls -l /usr/lib/x86_64-linux-gnu/libc++.so
           
           #python notify.py start "${{ github.repository }}" "${{ inputs.input_url }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
         
@@ -84,6 +84,8 @@ jobs:
 
          find . -name simg2img
          ldd $(find . -name simg2img | head -n1) || true
+
+         ldd ./bin/Linux/x86_64/simg2img || true
 
           sudo -E bash build.sh "$INPUT_URL" "${{ github.repository }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
 
