@@ -130,7 +130,7 @@ if [ -f "$work_dir/build/baserom/images/super.img" ]; then
     
     # ===== ĐOẠN THÊM VÀO: NÉN ZSTD CHO SUPER.IMG =====
     repack "🗜️ Compress super.img with zstd..."
-    zstd --rm -1 -T0 "$work_dir/build/baserom/images/super.img"
+    zstd --rm -22 -T0 "$work_dir/build/baserom/images/super.img"
     
     if [ -f "$work_dir/build/baserom/images/super.img.zst" ]; then
         repack "✅ Successfully compressed super.img.zst"
