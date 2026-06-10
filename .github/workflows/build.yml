@@ -56,7 +56,21 @@ jobs:
         run: |
           pip install requests
           sudo bash setup.sh
-          python notify.py start "${{ github.repository }}" "${{ inputs.input_url }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
+          echo "🔧 Fix libc++ for simg2img"
+
+          sudo find / -name "libc++.so*" 2>/dev/null || true
+
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /usr/lib/x86_64-linux-gnu/libc++.so || true
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /usr/lib/libc++.so || true
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libc++.so.1 /lib/libc++.so || true
+
+          echo "LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+
+          export LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+
+          sudo ldconfig
+          
+          #python notify.py start "${{ github.repository }}" "${{ inputs.input_url }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
         
       - name: Giving permission
         run: |
@@ -66,6 +80,10 @@ jobs:
         env:
           INPUT_URL: ${{ inputs.input_url }}
         run: |
+         export PATH="$GITHUB_WORKSPACE/android-sdk/build-tools/34.0.0:$PATH"
+         export LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+
+         ldd ./bin/Linux/x86_64/simg2img || true
           sudo bash build.sh "$INPUT_URL" "${{ github.repository }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
 
       - name: Pack ROM...
