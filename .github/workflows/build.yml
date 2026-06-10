@@ -10,7 +10,6 @@ jobs:
       matrix:
         device: [myron, socrates]
         region: [China, EEA]
-        # Loại trừ luồng socrates + EEA để không bị chạy thừa và báo lỗi
         exclude:
           - device: socrates
             region: EEA
@@ -203,18 +202,24 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/android-sdk/build-tools/34.0.0:$PATH"
           sudo bash build.sh "$INPUT_URL"
 
+      # ===== PACK ROM & XỬ LÝ NÉN ZSTD CHO SUPER.IMG (DÙNG LỆNH TÌM KIẾM ĐỘNG) =====
       - name: Pack ROM...
         run: |
           sudo bash packROM.sh
+          
           FILE="${{ env.ROM_FILE }}"
           if [ -f "$FILE" ]; then
-            echo "📂 Đang bung file zip ra để xử lý super.img..."
+            echo "📂 Đang bung file zip ra để tìm super.img..."
             mkdir -p zip_tmp
             sudo unzip -q "$FILE" -d zip_tmp/
             
-            if [ -f "zip_tmp/super.img" ]; then
-              echo "📦 Tìm thấy super.img, đang tiến hành nén zstd..."
-              sudo zstd --rm -1 -T0 zip_tmp/super.img
+            # Sử dụng lệnh find để tìm kiếm file super.img (bất kể vị trí thư mục con và hoa/thường)
+            SUPER_PATH=$(sudo find zip_tmp -type f -iname "super.img" | head -n 1)
+            
+            if [ -n "$SUPER_PATH" ] && [ -f "$SUPER_PATH" ]; then
+              echo "📦 Đã tìm thấy super.img tại đường dẫn: $SUPER_PATH"
+              echo "🗜️ Đang tiến hành nén bằng zstd..."
+              sudo zstd --rm -1 -T0 "$SUPER_PATH"
               
               echo "🗜️ Đóng gói lại thành file zip mới..."
               sudo rm -f "$FILE"
@@ -224,7 +229,7 @@ jobs:
               sudo rm -rf zip_tmp
               echo "✅ Đã đóng gói xong file zip chứa super.img.zst"
             else
-              echo "⚠️ Không tìm thấy super.img bên trong file zip!"
+              echo "⚠️ Không tìm thấy bất kỳ file super.img nào bên trong file zip!"
               sudo rm -rf zip_tmp
             fi
           else
@@ -315,7 +320,7 @@ jobs:
           fi
 
       # ===== TELEGRAM NOTIFY =====
-      - name: Notification to Telegram
+      - name: Update Database and Notification to Telegram
         env:
           BOT_TOKEN: ${{ secrets.TG_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -325,7 +330,6 @@ jobs:
           DEVICE="${{ matrix.device }}"
           REGION="${{ matrix.region }}"
 
-          # Sử dụng heredoc (cat << 'EOF') của Linux để tạo nội dung văn bản an toàn 100%
           TEXT=$(cat << EOF
           <b>🚀 New Xiaomi [${DEVICE^^} - ${REGION}] ROM Built Successfully!</b>
 
@@ -335,7 +339,6 @@ jobs:
           EOF
           )
 
-          # Gửi tin nhắn lên Telegram
           curl -s -X POST \
             "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${CHAT_ID}" \
