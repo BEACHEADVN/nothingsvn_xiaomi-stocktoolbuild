@@ -7,7 +7,7 @@ source $work_dir/functions.sh
 if [ ! -f "${baserom}" ] && [ "$(echo $baserom |grep http)" != "" ]; then
     info "Download link detected, starting a download..."
     aria2c --max-download-limit=1024M --file-allocation=none -s10 -x10 -j10 ${baserom}
-    baserom=$(basename ${baserom} | sed 's/\?t.*//')
+    baserom=$(ls -t *.zip 2>/dev/null | head -n1)
     if [ -f $work_dir/topaz-ota_full-OS3.0.2.0.WMGCNXM-user-16.0-b487e82659.zip ]; then
         baserom="topaz-ota_full-OS3.0.2.0.WMGCNXM-user-16.0-b487e82659.zip"
         info "BASEROM: ${baserom}"
