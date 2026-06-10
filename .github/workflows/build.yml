@@ -80,11 +80,12 @@ jobs:
         env:
           INPUT_URL: ${{ inputs.input_url }}
         run: |
-         export PATH="$GITHUB_WORKSPACE/android-sdk/build-tools/34.0.0:$PATH"
-         export LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+         export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/bin/package/DISABLE_AVB/HMATools/aosp/plugged/lib:$LD_LIBRARY_PATH"
 
-         ldd ./bin/Linux/x86_64/simg2img || true
-          sudo bash build.sh "$INPUT_URL" "${{ github.repository }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
+         find . -name simg2img
+         ldd $(find . -name simg2img | head -n1) || true
+
+          sudo -E bash build.sh "$INPUT_URL" "${{ github.repository }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
 
       - name: Pack ROM...
         run: |
