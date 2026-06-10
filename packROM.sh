@@ -127,18 +127,6 @@ lpmake $lpargs
 
 if [ -f "$work_dir/build/baserom/images/super.img" ]; then
     repack "Successfully packed super.img."
-    
-    # ===== ĐOẠN THÊM VÀO: NÉN ZSTD CHO SUPER.IMG =====
-    repack "🗜️ Compress super.img with zstd..."
-    zstd --rm -22 -T0 "$work_dir/build/baserom/images/super.img"
-    
-    if [ -f "$work_dir/build/baserom/images/super.img.zst" ]; then
-        repack "✅ Successfully compressed super.img.zst"
-    else
-        repack "❌ Failed to compress super.img with zstd!"
-        exit 1
-    fi
-    # ================================================
 else
     repack "Unable to pack super.img."
     exit 1
@@ -148,5 +136,4 @@ for pname in ${super_list}; do
     rm -rf "$work_dir/build/baserom/images/${pname}.img" 2>/dev/null
 done
 
-# Cập nhật lại thời gian cho các file trong build (bao gồm cả file .zst mới tạo)
 find "$work_dir/build" -exec touch -t 200901010000.00 {} + 2> /dev/null || true
