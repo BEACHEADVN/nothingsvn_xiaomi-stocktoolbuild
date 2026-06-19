@@ -1,8 +1,8 @@
 work_dir=$(pwd)
 source $work_dir/functions.sh
-rom_os=$(cat $WORK_DIR/bin/ddevice/rom_os.txt)
+rom_os=$(cat $work_dir/bin/ddevice/rom_os.txt)
 regionTYPE=$(cat $work_dir/bin/ddevice/device_type.txt)
-androidVER=$(cat $WORK_DIR/bin/ddevice/androidver.txt)
+androidVER=$(cat $work_dir/bin/ddevice/androidver.txt)
 MAIN_FOLDER="$work_dir/build/baserom/images"
 
 if [[ $regionTYPE == "China" && $androidVER == "13" ]]; then
