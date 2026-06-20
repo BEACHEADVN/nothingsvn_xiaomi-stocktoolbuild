@@ -40,7 +40,6 @@ mods "Add ROM Information To MIUI"
   rm -rf $WORK_DIR/apk_temp
   mods "Adding MIUI Information Done!"
 else
-
 mods "Add ROM Information To HyperOS"
   mkdir -p $WORK_DIR/apk_temp
   isSettingsDIR=$(find "$MAIN_FOLDER" -type d -name "Settings")
@@ -65,9 +64,9 @@ mods "Add ROM Information To HyperOS"
   $repS $tar4 $p1
 
   mods "Updating build.prop"
-  echo "ro.nothings.version=NT PreStock Edition $myversion | $final_version" >> $my
+  echo "ro.nothings.version=NothingsOS $myversion | $final_version" >> $my
   echo "ro.nothings.osversion=${simposcode}.${build_date}" >> $my
-  echo "ro.nothings.simposcode=Nothings PreStock Edition $myversion  " >> $my
+  echo "ro.nothings.simposcode=NothingsVN OpenSource $myversion  " >> $my
 
   mods "Rebuild..."
   Settings=$(basename $isSettings)

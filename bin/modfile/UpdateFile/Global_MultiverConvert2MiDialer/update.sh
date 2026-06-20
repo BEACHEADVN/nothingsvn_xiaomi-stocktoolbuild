@@ -40,7 +40,6 @@ if [[ $regionTYPE == *"Global"* ]]; then
 
 mods "Apply MIUI Dialer to Global ROM..."
 cleanStuff
-
 if [[ -f $existXiaomiTelephonyService ]];then
     mods "MIUI Service found.Deleting..."
     rm -rf $existXiaomiTelephonyService

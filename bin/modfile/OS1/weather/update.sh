@@ -9,7 +9,7 @@ Weather=$(find "$MAIN_FOLDER" -type d \( -name "MIUIWeather" -o -name "MiuiWeath
 if [[ $regionTYPE == "China" ]]; then
   rm -rf $Weather
   mkdir -p $work_dir/build/baserom/images/product/priv-app/MIUIWeather
-  cp -rf $work_dir/bin/modfile/OS3/weather/MIUIWeather/* $work_dir/build/baserom/images/product/priv-app/MIUIWeather
-  cp -rf $work_dir/bin/modfile/OS3/weather/permissions/privapp-permissions-zos.xml $work_dir/build/baserom/images/product/etc/permissions/
+  cp -rf $work_dir/bin/modfile/OS1/weather/MIUIWeather/* $work_dir/build/baserom/images/product/priv-app/MIUIWeather
+  cp -rf $work_dir/bin/modfile/OS1/weather/permissions/privapp-permissions-zos.xml $work_dir/build/baserom/images/product/etc/permissions/
   mods "Added MIUIWeather Done!"
 fi
