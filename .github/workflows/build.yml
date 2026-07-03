@@ -7,12 +7,12 @@ on:
         description: 'URL of the ROM to build'
         required: true
       builder_name:
-        description: 'Tên người build'
+        description: 'Builder name'
         required: false
       builder_id:
-        description: 'ID người build'
+        description: 'Builder ID'
         required: false
-      
+
 jobs:
   Initialize:
     runs-on: ubuntu-latest
@@ -20,7 +20,7 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
     steps:
-      - name: Clean All Unused file,application
+      - name: Clean unused files and applications
         run: |
           docker rmi `docker images -q` || true
           sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /etc/sudo apt/sources.list.d || true
@@ -38,11 +38,11 @@ jobs:
           remove-android: 'true'
           remove-haskell: 'true'
 
-      - name: Set up Time
+      - name: Set timezone
         run: |
-          echo "Setting Vienam timezone"
+          echo "Setting Vietnam timezone"
           sudo timedatectl set-timezone Asia/Ho_Chi_Minh
-          
+
       - name: Install OpenJDK
         uses: actions/setup-java@v4
         with:
@@ -52,41 +52,71 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@main
 
-      - name: Install Stuff & Start Notify
+      - name: Install tools and send start notification
         run: |
-          pip install requests
-          sudo bash setup.sh
+          set -e
+          set -o pipefail
+          echo "[STEP] Install tools" | tee -a build_action.log
+          pip install requests 2>&1 | tee -a build_action.log
+          sudo bash setup.sh 2>&1 | tee -a build_action.log
           python notify.py start "${{ github.repository }}" "${{ inputs.input_url }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
-        
-      - name: Giving permission
+
+      - name: Grant file permissions
         run: |
           sudo chmod 777 -R *
 
-      - name: Build ROM...
+      - name: Build ROM
         env:
           INPUT_URL: ${{ inputs.input_url }}
         run: |
-          sudo bash build.sh "$INPUT_URL" "${{ github.repository }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
+          set -e
+          set -o pipefail
+          echo "[STEP] Build ROM" | tee -a build_action.log
+          sudo bash build.sh "$INPUT_URL" "${{ github.repository }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}" 2>&1 | tee -a build_action.log
 
-      - name: Pack ROM...
+      - name: Pack ROM
         run: |
-          sudo bash packROM.sh
+          set -e
+          set -o pipefail
+          python notify.py pack "${{ github.repository }}" "${{ inputs.input_url }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
+          echo "[STEP] Pack ROM" | tee -a build_action.log
+          sudo bash packROM.sh 2>&1 | tee -a build_action.log
 
-      - name: Setup Rclone...
+      - name: Set up Rclone
         run: |
-          sudo -E bash uploadROM.sh setup "${{ secrets.GH_TOKEN }}" "${{ secrets.GH_REPO }}" "${{ secrets.RCLONE_TOKEN_PATH }}"
-          
-      - name: Upload ROM...
+          set -e
+          set -o pipefail
+          echo "[STEP] Set up Rclone" | tee -a build_action.log
+          sudo -E bash uploadROM.sh setup "${{ secrets.GH_TOKEN }}" "${{ secrets.GH_REPO }}" "${{ secrets.RCLONE_TOKEN_PATH }}" 2>&1 | tee -a build_action.log
+
+      - name: Upload ROM to cloud
         run: |
+          set -e
+          set -o pipefail
           python notify.py upload "${{ github.repository }}" "${{ inputs.input_url }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
-          sudo -E bash uploadROM.sh
-      
-      - name: Success Notification
+          echo "[STEP] Upload ROM to cloud" | tee -a build_action.log
+          sudo -E bash uploadROM.sh 2>&1 | tee -a build_action.log
+
+      - name: Send success notification
         if: success()
+        env:
+          NOTIFY_WORKFLOW_CONCLUSION: success
         run: |
           python notify.py success "${{ github.repository }}" "${{ inputs.input_url }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
 
-      - name: Failure Notification
+      - name: Send failure notification
         if: failure()
+        env:
+          NOTIFY_WORKFLOW_CONCLUSION: failure
+          NOTIFY_ERROR_LOG: build_action.log
         run: |
           python notify.py fail "${{ github.repository }}" "${{ inputs.input_url }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
+
+      - name: Send cancellation notification
+        if: cancelled()
+        env:
+          NOTIFY_WORKFLOW_CONCLUSION: cancelled
+          NOTIFY_ERROR_LOG: build_action.log
+          NOTIFY_ERROR_REASON: Workflow run was cancelled before completion.
+        run: |
+          python notify.py cancelled "${{ github.repository }}" "${{ inputs.input_url }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
