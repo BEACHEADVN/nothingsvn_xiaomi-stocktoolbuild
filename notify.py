@@ -4,11 +4,13 @@ import html
 import random
 import re
 import string
+from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 
 import requests
 
-# Keep stdout/stderr UTF-8 on GitHub runner and local terminals.
+# Giữ stdout/stderr ở UTF-8 trên GitHub runner và terminal cục bộ.
 for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
         try:
@@ -27,16 +29,41 @@ STATUS_ALIASES = {
 }
 
 STATUS_INFO = {
-    "start": ("START", "INITIALIZING BUILD ENVIRONMENT", "Preparing the ROM build environment."),
-    "sync": ("SYNC", "SYNCING DATA", "Syncing or downloading required source data."),
-    "download": ("DOWNLOAD", "DOWNLOADING SOURCE ROM", "Downloading the source ROM to the runner."),
-    "unpack": ("UNPACK", "UNPACKING PARTITIONS", "Unpacking payload/new.dat/super image files."),
-    "build": ("BUILD", "BUILDING AND PATCHING ROM", "Processing, modifying, and patching the ROM."),
-    "pack": ("PACK", "PACKAGING ROM ZIP", "Repacking partitions and creating the flashable package."),
-    "upload": ("UPLOAD", "UPLOADING OUTPUT", "Uploading the completed ROM file to cloud storage."),
-    "success": ("SUCCESS", "BUILD COMPLETED", "The ROM build finished successfully."),
-    "fail": ("FAILED", "BUILD FAILED", "An error occurred during the build. See diagnostics below."),
-    "cancelled": ("CANCELLED", "BUILD CANCELLED", "The workflow was cancelled or stopped before completion."),
+    "start": ("BẮT ĐẦU", "KHỞI TẠO MÔI TRƯỜNG BUILD", "Đang chuẩn bị runner, biến môi trường và thư mục làm việc."),
+    "sync": ("ĐỒNG BỘ", "ĐỒNG BỘ DỮ LIỆU", "Đang đồng bộ hoặc tải dữ liệu nguồn cần thiết."),
+    "download": ("TẢI ROM", "TẢI SOURCE ROM", "Đang tải source ROM về runner để xử lý."),
+    "unpack": ("GIẢI NÉN", "GIẢI NÉN PHÂN VÙNG", "Đang giải nén payload/new.dat/super image và các phân vùng liên quan."),
+    "build": ("BUILD", "BUILD VÀ PATCH ROM", "Đang xử lý, chỉnh sửa, vá và tối ưu các thành phần ROM."),
+    "pack": ("ĐÓNG GÓI", "ĐÓNG GÓI ROM ZIP", "Đang repack phân vùng và tạo gói ROM có thể flash."),
+    "upload": ("TẢI LÊN", "TẢI LÊN THÀNH PHẨM", "Đang upload file ROM đã build xong lên nơi lưu trữ."),
+    "success": ("HOÀN TẤT", "BUILD HOÀN TẤT", "Quy trình build ROM đã hoàn tất thành công."),
+    "fail": ("THẤT BẠI", "BUILD GẶP LỖI", "Có lỗi xảy ra trong quá trình build. Xem phần chẩn đoán bên dưới."),
+    "cancelled": ("ĐÃ HỦY", "BUILD ĐÃ BỊ HỦY", "Workflow đã bị hủy hoặc dừng trước khi hoàn tất."),
+}
+
+STATUS_ACTIONS = {
+    "start": "Không cần thao tác; hệ thống đang chuẩn bị môi trường build.",
+    "sync": "Nếu bước này đứng lâu, hãy kiểm tra nguồn dữ liệu hoặc kết nối mạng của runner.",
+    "download": "Nếu tải chậm hoặc lỗi, hãy kiểm tra lại link source ROM và dung lượng trống của runner.",
+    "unpack": "Nếu lỗi ở bước này, thường cần xem định dạng payload/new.dat/super image và dung lượng giải nén.",
+    "build": "Đây là bước xử lý chính; nếu thất bại hãy xem đoạn log cuối để biết file hoặc lệnh gây lỗi.",
+    "pack": "Nếu đóng gói thất bại, hãy kiểm tra cấu trúc phân vùng, dung lượng output và quyền ghi file.",
+    "upload": "Nếu upload lâu, hãy kiểm tra kích thước file ROM và kết nối tới nơi lưu trữ.",
+    "success": "Có thể kiểm tra file output/link tải và gửi ROM cho người yêu cầu.",
+    "fail": "Mở build log để xem đầy đủ lỗi, đồng thời kiểm tra phần chẩn đoán trong thông báo này.",
+    "cancelled": "Kiểm tra Timeline/Jobs, Run ID và Attempt trong GitHub Actions để biết thời điểm dừng.",
+}
+
+CONCLUSION_LABELS = {
+    "success": "thành công",
+    "failure": "thất bại",
+    "failed": "thất bại",
+    "cancelled": "đã hủy",
+    "canceled": "đã hủy",
+    "skipped": "đã bỏ qua",
+    "timed_out": "hết thời gian",
+    "action_required": "cần thao tác",
+    "neutral": "trung lập",
 }
 
 UNKNOWN_VALUES = {
@@ -49,9 +76,14 @@ UNKNOWN_VALUES = {
     "pending",
     "detecting...",
     "scanning...",
+    "không rõ",
+    "khong ro",
+    "chưa rõ",
+    "chua ro",
 }
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+MAX_LOG_DOCUMENT_BYTES = 45 * 1024 * 1024
 
 
 def normalize_status(status: str) -> str:
@@ -164,6 +196,122 @@ def collect_log_candidates():
     return result
 
 
+
+
+def format_file_size(size: int) -> str:
+    try:
+        size = int(size)
+    except Exception:
+        return "không rõ"
+    units = ["B", "KiB", "MiB", "GiB"]
+    value = float(size)
+    for unit in units:
+        if value < 1024 or unit == units[-1]:
+            return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} {unit}"
+        value /= 1024
+    return f"{size} B"
+
+
+def safe_filename_part(value, default="build") -> str:
+    text = compact_one_line(value, 80)
+    text = re.sub(r"[^A-Za-z0-9._-]+", "_", text).strip("._-")
+    return text or default
+
+
+def select_full_log_path():
+    for candidate in collect_log_candidates():
+        try:
+            if candidate.exists() and candidate.is_file() and candidate.stat().st_size > 0:
+                return candidate
+        except Exception:
+            continue
+    return None
+
+
+def compose_log_caption(status: str, repo_name: str, build_id: str, log_path: Path, size: int, part_index: int, total_parts: int) -> str:
+    marker = STATUS_INFO.get(status, ("THÔNG TIN", "", ""))[0]
+    action_url = build_action_url(repo_name)
+    lines = [
+        "<b>Full log build ROM</b>",
+        f"• <b>Trạng thái:</b> <code>{escape(marker)}</code>",
+        f"• <b>Mã build:</b> <code>{escape(build_id)}</code>",
+        f"• <b>Dung lượng:</b> <code>{escape(format_file_size(size))}</code>",
+        f"• <b>Nguồn log:</b> <code>{escape(compact_one_line(str(log_path), 140))}</code>",
+    ]
+    if total_parts > 1:
+        lines.append(f"• <b>Phần:</b> <code>{part_index}/{total_parts}</code>")
+    if action_url:
+        lines.append(f"• <b>GitHub Actions:</b> <a href=\"{escape(action_url)}\">Mở build log</a>")
+    return "\n".join(lines)
+
+
+def post_telegram_document_bytes(url: str, payload: dict, filename: str, content: bytes):
+    with BytesIO(content) as file_data:
+        files = {"document": (filename, file_data, "text/plain")}
+        response = requests.post(url, data=payload, files=files, timeout=120)
+    try:
+        data = response.json()
+    except Exception:
+        data = {}
+    return response, data
+
+
+def send_full_log_document(base_url: str, channel_id: str, status: str, repo_name: str, build_id: str) -> bool:
+    log_path = select_full_log_path()
+    if not log_path:
+        print("Không tìm thấy file log đầy đủ để gửi lên kênh.")
+        return False
+
+    try:
+        size = log_path.stat().st_size
+    except Exception as exc:
+        print(f"Không thể đọc thông tin file log đầy đủ: {exc}")
+        return False
+
+    if size <= 0:
+        print("File log đầy đủ đang trống; bỏ qua gửi file .txt.")
+        return False
+
+    total_parts = max(1, (size + MAX_LOG_DOCUMENT_BYTES - 1) // MAX_LOG_DOCUMENT_BYTES)
+    base_name = f"{safe_filename_part(build_id)}_{safe_filename_part(status, 'status')}_full_log"
+    sent_parts = 0
+
+    try:
+        with log_path.open("rb") as log_file:
+            for part_index in range(1, total_parts + 1):
+                content = log_file.read(MAX_LOG_DOCUMENT_BYTES)
+                if not content:
+                    break
+
+                if total_parts > 1:
+                    filename = f"{base_name}_part{part_index:02d}of{total_parts:02d}.txt"
+                else:
+                    filename = f"{base_name}.txt"
+
+                payload = {
+                    "chat_id": channel_id,
+                    "caption": compose_log_caption(status, repo_name, build_id, log_path, size, part_index, total_parts),
+                    "parse_mode": "HTML",
+                    "disable_content_type_detection": "true",
+                }
+                response, data = post_telegram_document_bytes(f"{base_url}/sendDocument", payload, filename, content)
+                if not response.ok:
+                    description = str(data.get("description", response.text))
+                    print(f"Không thể gửi full log lên kênh. Lý do: {description}")
+                    return False
+
+                sent_parts += 1
+                if total_parts > 1:
+                    print(f"Đã gửi full log lên kênh: {filename} ({part_index}/{total_parts}).")
+                else:
+                    print(f"Đã gửi full log lên kênh: {filename}.")
+    except Exception as exc:
+        print(f"Lỗi khi gửi full log lên kênh: {exc}")
+        return False
+
+    return sent_parts == total_parts
+
+
 def extract_reason_from_log(log_tail: str) -> str:
     if not log_tail:
         return ""
@@ -212,9 +360,9 @@ def collect_diagnostics(status: str):
     reason = compact_one_line(env_reason) if env_reason else extract_reason_from_log(selected_tail)
     if not reason:
         if status == "cancelled":
-            reason = "The workflow was cancelled before completion; check the Run ID and Attempt in GitHub Actions."
+            reason = "Workflow đã bị hủy trước khi hoàn tất; hãy kiểm tra Run ID và Attempt trong GitHub Actions."
         elif status == "fail":
-            reason = "No local log tail was found; open the GitHub Actions log for full details."
+            reason = "Không tìm thấy đoạn log cục bộ; hãy mở log GitHub Actions để xem chi tiết đầy đủ."
 
     return reason, selected_path, selected_tail
 
@@ -227,6 +375,17 @@ def build_action_url(repo_name: str) -> str:
     if repo:
         return f"https://github.com/{repo}/actions"
     return ""
+
+
+def current_time_text() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def localize_conclusion(value: str) -> str:
+    text = compact_one_line(value)
+    if not text:
+        return ""
+    return CONCLUSION_LABELS.get(text.lower(), text)
 
 
 def collect_device_info():
@@ -243,17 +402,17 @@ def collect_device_info():
     sdk_level = read_file_if_exists("bin/ddevice/sdkLevel.txt")
 
     return {
-        "Device": read_first([
+        "Thiết bị": read_first([
             "bin/ddevice/device_name.txt",
             "bin/ddevice/name_devices.txt",
             "bin/ddevice/name_device.txt",
         ]),
-        "Codename": read_first([
+        "Mã thiết bị": read_first([
             "bin/ddevice/device_code.txt",
             "bin/ddevice/device_model.txt",
             "bin/ddevice/device_f.txt",
         ]),
-        "ROM": " | ".join(
+        "ROM nền": " | ".join(
             part
             for part in [
                 rom_os,
@@ -265,11 +424,11 @@ def collect_device_info():
             ]
             if is_available(part)
         ),
-        "Region": read_first([
+        "Khu vực": read_first([
             "bin/ddevice/rom_region.txt",
             "bin/ddevice/device_type.txt",
         ]),
-        "Android": " | ".join(
+        "Android / SDK": " | ".join(
             part
             for part in [
                 f"Android {android_ver}" if is_available(android_ver) else "",
@@ -277,8 +436,8 @@ def collect_device_info():
             ]
             if is_available(part)
         ),
-        "ROM type": read_first(["bin/ddevice/romtype.txt"]),
-        "FS/Structure": " | ".join(
+        "Loại ROM": read_first(["bin/ddevice/romtype.txt"]),
+        "Hệ thống file / cấu trúc": " | ".join(
             part
             for part in [
                 read_first(["bin/ddevice/fstype.txt"]),
@@ -287,8 +446,8 @@ def collect_device_info():
             if is_available(part)
         ),
         "Chip": read_first(["bin/script2flash/META-INF/Data/Chip"]),
-        "Tool version": read_first(["Version"]),
-        "Output zip": read_first(["bin/ddevice/output_zip.txt"]),
+        "Phiên bản tool": read_first(["Version"]),
+        "File output": read_first(["bin/ddevice/output_zip.txt"]),
     }
 
 
@@ -302,9 +461,9 @@ def collect_run_info(repo_name: str, build_id: str):
     if run_number:
         run_parts.append(f"#{run_number}")
     if run_attempt:
-        run_parts.append(f"attempt {run_attempt}")
+        run_parts.append(f"lần thử {run_attempt}")
     if run_id:
-        run_parts.append(f"id {run_id}")
+        run_parts.append(f"ID {run_id}")
 
     workflow = os.environ.get("GITHUB_WORKFLOW", "")
     job = os.environ.get("GITHUB_JOB", "")
@@ -314,50 +473,61 @@ def collect_run_info(repo_name: str, build_id: str):
     triggering_actor = os.environ.get("GITHUB_TRIGGERING_ACTOR", "")
     actor_text = actor
     if triggering_actor and triggering_actor != actor:
-        actor_text = f"{actor} (trigger: {triggering_actor})" if actor else triggering_actor
+        actor_text = f"{actor} (kích hoạt qua: {triggering_actor})" if actor else triggering_actor
 
     ref = os.environ.get("GITHUB_REF_NAME", "") or os.environ.get("GITHUB_REF", "")
     ref_sha = " / ".join(part for part in [ref, sha_short] if is_available(part))
 
     return {
-        "Build ID": build_id,
-        "Repository": repo_name or os.environ.get("GITHUB_REPOSITORY", ""),
-        "Run": " / ".join(run_parts),
-        "Workflow/Job": workflow_job,
-        "Event": os.environ.get("GITHUB_EVENT_NAME", ""),
-        "Ref/SHA": ref_sha,
-        "Triggered by": actor_text,
+        "Mã build": build_id,
+        "Kho lưu trữ": repo_name or os.environ.get("GITHUB_REPOSITORY", ""),
+        "Lượt chạy": " / ".join(run_parts),
+        "Workflow / Job": workflow_job,
+        "Sự kiện": os.environ.get("GITHUB_EVENT_NAME", ""),
+        "Nhánh / SHA": ref_sha,
+        "Người kích hoạt": actor_text,
         "Runner": os.environ.get("RUNNER_NAME", ""),
-        "Conclusion": os.environ.get("NOTIFY_WORKFLOW_CONCLUSION", ""),
+        "Kết luận workflow": localize_conclusion(os.environ.get("NOTIFY_WORKFLOW_CONCLUSION", "")),
+        "Cập nhật lúc": current_time_text(),
     }
 
 
 def progress_text(status: str, previous_status: str = "") -> str:
-    stages = ["start", "download", "unpack", "build", "pack", "upload", "success"]
-    stage_labels = {
-        "start": "start",
-        "download": "download",
-        "unpack": "unpack",
-        "build": "build",
-        "pack": "pack",
-        "upload": "upload",
-        "success": "success",
+    stages = [
+        ("start", "Khởi tạo"),
+        ("sync", "Đồng bộ"),
+        ("download", "Tải ROM"),
+        ("unpack", "Giải nén"),
+        ("build", "Build"),
+        ("pack", "Đóng gói"),
+        ("upload", "Tải lên"),
+        ("success", "Hoàn tất"),
+    ]
+    stage_keys = [stage for stage, _ in stages]
+    state_marks = {
+        "done": "✓",
+        "running": "●",
+        "pending": "○",
+        "last": "!",
     }
+
     marker_status = previous_status if status in {"fail", "cancelled"} and previous_status else status
     marker_status = normalize_status(marker_status)
-    current_index = stages.index(marker_status) if marker_status in stages else -1
+    current_index = stage_keys.index(marker_status) if marker_status in stage_keys else -1
+
     items = []
-    for idx, stage in enumerate(stages):
+    for idx, (stage, label) in enumerate(stages):
         if idx < current_index:
             state = "done"
         elif idx == current_index:
             state = "running" if status not in {"success", "fail", "cancelled"} else ("done" if status == "success" else "last")
         else:
             state = "pending"
-        items.append(f"{stage_labels[stage]}:{state}")
+        items.append(f"{state_marks[state]} {label}")
+
     if status in {"fail", "cancelled"} and previous_status:
-        items.append(f"stop:{'cancelled' if status == 'cancelled' else 'failed'}")
-    return " > ".join(items)
+        items.append("! Đã hủy" if status == "cancelled" else "! Dừng do lỗi")
+    return " → ".join(items)
 
 
 def add_field(lines, label: str, value, code: bool = False):
@@ -365,22 +535,22 @@ def add_field(lines, label: str, value, code: bool = False):
         return
     text = compact_one_line(str(value), 260)
     if code:
-        lines.append(f"<b>{escape(label)}:</b> <code>{escape(text)}</code>")
+        lines.append(f"• <b>{escape(label)}:</b> <code>{escape(text)}</code>")
     else:
-        lines.append(f"<b>{escape(label)}:</b> {escape(text)}")
+        lines.append(f"• <b>{escape(label)}:</b> {escape(text)}")
 
 
 def add_link(lines, label: str, url: str, text: str):
     if not is_available(url):
         return
-    lines.append(f"<b>{escape(label)}:</b> <a href=\"{escape(url)}\">{escape(text)}</a>")
+    lines.append(f"• <b>{escape(label)}:</b> <a href=\"{escape(url)}\">{escape(text)}</a>")
 
 
 def compose_message(status, repo_name, rom_link, build_id, builder_name):
     status = normalize_status(status)
     marker, status_title, status_desc = STATUS_INFO.get(
         status,
-        ("INFO", "STATUS UPDATE", str(status).upper()),
+        ("THÔNG TIN", "CẬP NHẬT TRẠNG THÁI", f"Nhận được trạng thái: {status}"),
     )
 
     previous_status = read_file_if_exists("bin/ddevice/last_status.txt")
@@ -388,44 +558,46 @@ def compose_message(status, repo_name, rom_link, build_id, builder_name):
         write_file("bin/ddevice/last_status.txt", status)
 
     action_url = build_action_url(repo_name)
-    builder_text = builder_name if builder_name else "System"
+    builder_text = builder_name if builder_name else "Hệ thống"
+    action_hint = STATUS_ACTIONS.get(status, "Theo dõi build log để xem chi tiết tiến trình.")
 
     lines = [
-        "<b>ROM BUILD PROGRESS</b>",
-        "-------------------------",
-        f"<b>Status:</b> <code>{escape(marker)}</code> <b>{escape(status_title)}</b>",
-        f"<b>Details:</b> {escape(status_desc)}",
-        f"<b>Progress:</b> <code>{escape(progress_text(status, previous_status))}</code>",
+        "<b>Thông báo tiến trình build ROM</b>",
+        "━━━━━━━━━━━━━━━━━━━━",
+        f"<b>Trạng thái:</b> <code>{escape(marker)}</code> — <b>{escape(status_title)}</b>",
+        f"<b>Tóm tắt:</b> {escape(status_desc)}",
+        f"<b>Tiến trình:</b> <code>{escape(progress_text(status, previous_status))}</code>",
+        f"<b>Gợi ý:</b> {escape(action_hint)}",
         "",
-        "<b>Build information</b>",
+        "<b>Thông tin bản build</b>",
     ]
 
-    add_field(lines, "Builder", builder_text)
+    add_field(lines, "Người build", builder_text)
     for label, value in collect_device_info().items():
         add_field(lines, label, value, code=True)
 
-    lines.extend(["", "<b>Check information</b>"])
+    lines.extend(["", "<b>Thông tin workflow</b>"])
     for label, value in collect_run_info(repo_name, build_id).items():
         add_field(lines, label, value, code=True)
-    add_link(lines, "Build log", action_url, "Open GitHub Actions log")
-    add_link(lines, "Source ROM", rom_link, "Open source ROM link")
+    add_link(lines, "Build log", action_url, "Mở log GitHub Actions")
+    add_link(lines, "Source ROM", rom_link, "Mở link source ROM")
 
     if status in {"fail", "cancelled"}:
         reason, log_path, log_tail = collect_diagnostics(status)
-        lines.extend(["", "<b>Diagnostics</b>"])
-        add_field(lines, "Latest reason", reason, code=True)
-        add_field(lines, "Local log", log_path, code=True)
+        lines.extend(["", "<b>Chẩn đoán</b>"])
+        add_field(lines, "Nguyên nhân gần nhất", reason, code=True)
+        add_field(lines, "Log cục bộ", log_path, code=True)
         if status == "cancelled":
-            lines.append("<b>Cancellation check:</b> open the build log and inspect Timeline/Jobs, Run ID, and Attempt to identify when or who cancelled it.")
+            lines.append("• <b>Kiểm tra hủy:</b> mở build log và xem Timeline/Jobs, Run ID, Attempt để xác định thời điểm hoặc người đã hủy.")
         if log_tail:
-            lines.append("<b>Log tail:</b>")
+            lines.append("<b>Đoạn log cuối:</b>")
             lines.append(f"<pre>{escape(log_tail)}</pre>")
 
     message = "\n".join(lines)
     if len(message) <= 3900:
         return message
 
-    # If the Telegram message is too long, shorten the log while keeping key fields and links.
+    # Nếu thông báo Telegram quá dài, rút gọn log nhưng vẫn giữ các trường chính và liên kết.
     if status in {"fail", "cancelled"}:
         reason, log_path, log_tail = collect_diagnostics(status)
         short_tail = log_tail[-700:] if log_tail else ""
@@ -433,7 +605,7 @@ def compose_message(status, repo_name, rom_link, build_id, builder_name):
             trimmed_lines = []
             skipping = False
             for line in lines:
-                if line == "<b>Log tail:</b>":
+                if line == "<b>Đoạn log cuối:</b>":
                     trimmed_lines.append(line)
                     trimmed_lines.append(f"<pre>{escape('...\n' + short_tail)}</pre>")
                     skipping = True
@@ -445,7 +617,7 @@ def compose_message(status, repo_name, rom_link, build_id, builder_name):
                 trimmed_lines.append(line)
             message = "\n".join(trimmed_lines)
     if len(message) > 3900:
-        message = message[:3800] + "\n...\n(Open the build log for the full output.)"
+        message = message[:3800] + "\n...\n(Mở build log để xem toàn bộ nội dung.)"
     return message
 
 
@@ -469,7 +641,7 @@ def post_telegram(url: str, payload: dict):
     return response, data
 
 
-def send_notification(status, repo_name, rom_link, channel_id, bot_token, msg_id=None, build_id="Unknown", builder_name="", builder_id=""):
+def send_notification(status, repo_name, rom_link, channel_id, bot_token, msg_id=None, build_id="Không rõ", builder_name="", builder_id=""):
     status = normalize_status(status)
     message = compose_message(status, repo_name, rom_link, build_id, builder_name)
 
@@ -489,39 +661,44 @@ def send_notification(status, repo_name, rom_link, channel_id, bot_token, msg_id
             if not response.ok:
                 description = str(data.get("description", response.text))
                 if "message is not modified" in description.lower():
-                    print("Telegram message was not modified; update skipped.")
+                    print("Thông báo Telegram không thay đổi; bỏ qua cập nhật.")
                 else:
-                    print(f"Could not edit the old Telegram message; sending a new one. Reason: {description}")
+                    print(f"Không thể sửa thông báo Telegram cũ; sẽ gửi thông báo mới. Lý do: {description}")
                     response, data = post_telegram(f"{base_url}/sendMessage", payload)
                     response.raise_for_status()
                     new_msg_id = data.get("result", {}).get("message_id")
                     if new_msg_id:
                         save_env("TELEGRAM_MSG_ID", str(new_msg_id))
             else:
-                print("Telegram notification updated.")
+                print("Đã cập nhật thông báo Telegram.")
         else:
             response, data = post_telegram(f"{base_url}/sendMessage", payload)
             response.raise_for_status()
             new_msg_id = data.get("result", {}).get("message_id")
             if new_msg_id:
                 save_env("TELEGRAM_MSG_ID", str(new_msg_id))
-                print(f"Saved TELEGRAM_MSG_ID={new_msg_id} to GITHUB_ENV.")
-            print("Telegram notification sent.")
+                print(f"Đã lưu TELEGRAM_MSG_ID={new_msg_id} vào GITHUB_ENV.")
+            print("Đã gửi thông báo Telegram.")
+
+        if status in FINAL_STATUSES and os.environ.get("TELEGRAM_FULL_LOG_SENT") != "1":
+            if send_full_log_document(base_url, channel_id, status, repo_name, build_id):
+                os.environ["TELEGRAM_FULL_LOG_SENT"] = "1"
+                save_env("TELEGRAM_FULL_LOG_SENT", "1")
 
         if status in {"success", "fail", "cancelled"} and builder_id:
             pm_title = {
-                "success": "YOUR ROM BUILD REQUEST COMPLETED",
-                "fail": "YOUR ROM BUILD REQUEST FAILED",
-                "cancelled": "YOUR ROM BUILD REQUEST WAS CANCELLED",
+                "success": "YÊU CẦU BUILD ROM CỦA BẠN ĐÃ HOÀN TẤT",
+                "fail": "YÊU CẦU BUILD ROM CỦA BẠN BỊ LỖI",
+                "cancelled": "YÊU CẦU BUILD ROM CỦA BẠN ĐÃ BỊ HỦY",
             }[status]
             pm_lines = [f"<b>{escape(pm_title)}</b>", "", message]
             if status == "success":
-                pm_lines.extend(["", "<b>Download ROM:</b> <a href=\"https://nothingsvn.vercel.app/\">nothingsvn.vercel.app</a>"])
+                pm_lines.extend(["", "<b>Tải ROM:</b> <a href=\"https://nothingsvn.vercel.app/\">nothingsvn.vercel.app</a>"])
             else:
-                pm_lines.extend(["", "<b>Tip:</b> open the Build log link in the notification to view the full error or cancellation details."])
+                pm_lines.extend(["", "<b>Gợi ý:</b> mở link Build log trong thông báo để xem đầy đủ lỗi hoặc chi tiết hủy."])
             pm_text = "\n".join(pm_lines)
             if len(pm_text) > 3900:
-                pm_text = pm_text[:3800] + "\n...\n(Open the build log for the full output.)"
+                pm_text = pm_text[:3800] + "\n...\n(Mở build log để xem toàn bộ nội dung.)"
             pm_payload = {
                 "chat_id": builder_id,
                 "text": pm_text,
@@ -530,16 +707,16 @@ def send_notification(status, repo_name, rom_link, channel_id, bot_token, msg_id
             }
             pm_response, pm_data = post_telegram(f"{base_url}/sendMessage", pm_payload)
             if pm_response.ok:
-                print(f"Private message sent to user {builder_id}.")
+                print(f"Đã gửi tin nhắn riêng cho người dùng {builder_id}.")
             else:
-                print(f"Could not send a private message to user {builder_id}: {pm_data or pm_response.text}")
+                print(f"Không thể gửi tin nhắn riêng cho người dùng {builder_id}: {pm_data or pm_response.text}")
     except Exception as exc:
-        print(f"Error while sending/updating the Telegram notification: {exc}")
+        print(f"Lỗi khi gửi/cập nhật thông báo Telegram: {exc}")
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:
-        print("Usage: python notify.py <status> <repo_name> <rom_link> [prefix_id] [builder_name] [builder_id]")
+        print("Cách dùng: python notify.py <status> <repo_name> <rom_link> [prefix_id] [builder_name] [builder_id]")
         sys.exit(1)
 
     status_arg = sys.argv[1]
@@ -562,7 +739,7 @@ if __name__ == "__main__":
     write_file("bin/ddevice/telegram_build_id.txt", build_id_arg)
 
     if not bot_token_arg or not channel_id_arg:
-        print("Error: TELEGRAM_BOT_TOKEN or TELEGRAM_CHANNEL_ID is missing from environment variables.")
+        print("Lỗi: thiếu TELEGRAM_BOT_TOKEN hoặc TELEGRAM_CHANNEL_ID trong biến môi trường.")
         sys.exit(1)
 
     send_notification(
