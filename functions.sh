@@ -82,27 +82,6 @@ patch() {
 }
 
 
-# T?i b?ng aria2c v? t? th?m GitHub token khi URL l? GitHub.
-aria2c_with_github_token() {
-    local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
-    local use_github_token=0
-    local arg
-
-    for arg in "$@"; do
-        case "$arg" in
-            *github.com*|*githubusercontent.com*|*githubassets.com*)
-                use_github_token=1
-                break
-                ;;
-        esac
-    done
-
-    if [ "$use_github_token" -eq 1 ] && [ -n "$token" ]; then
-        command aria2c --header="Authorization: Bearer ${token}" --header="Accept: application/octet-stream" "$@"
-    else
-        command aria2c "$@"
-    fi
-}
 
 # Check for required dependencies
 exists() {
