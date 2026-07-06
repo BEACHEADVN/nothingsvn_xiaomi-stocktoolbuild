@@ -1,4 +1,4 @@
-﻿work_dir=$(pwd)
+work_dir=$(pwd)
 source $work_dir/functions.sh
 rom_os=$(cat $work_dir/bin/ddevice/rom_os.txt)
 androidVER=$(cat $work_dir/bin/ddevice/androidver.txt)
