@@ -6,7 +6,7 @@ source $work_dir/functions.sh
 # Check whether it is a local package or a link
 if [ ! -f "${baserom}" ] && [ "$(echo $baserom |grep http)" != "" ]; then
     info "Download link detected, starting a download..."
-    aria2c --max-download-limit=1024M --file-allocation=none -s10 -x10 -j10 ${baserom}
+    aria2c_with_github_token --max-download-limit=1024M --file-allocation=none -s10 -x10 -j10 ${baserom}
     baserom=$(basename ${baserom} | sed 's/\?t.*//')
     if [ -f $work_dir/topaz-ota_full-OS3.0.2.0.WMGCNXM-user-16.0-b487e82659.zip ]; then
         baserom="topaz-ota_full-OS3.0.2.0.WMGCNXM-user-16.0-b487e82659.zip"
