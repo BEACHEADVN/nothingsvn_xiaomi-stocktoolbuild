@@ -230,18 +230,14 @@ def select_full_log_path():
 
 def compose_log_caption(status: str, repo_name: str, build_id: str, log_path: Path, size: int, part_index: int, total_parts: int) -> str:
     marker = STATUS_INFO.get(status, ("THÔNG TIN", "", ""))[0]
-    action_url = build_action_url(repo_name)
     lines = [
-        "<b>Full log build ROM</b>",
+        "<b>Log lỗi build ROM</b>",
         f"• <b>Trạng thái:</b> <code>{escape(marker)}</code>",
         f"• <b>Mã build:</b> <code>{escape(build_id)}</code>",
         f"• <b>Dung lượng:</b> <code>{escape(format_file_size(size))}</code>",
-        f"• <b>Nguồn log:</b> <code>{escape(compact_one_line(str(log_path), 140))}</code>",
     ]
     if total_parts > 1:
         lines.append(f"• <b>Phần:</b> <code>{part_index}/{total_parts}</code>")
-    if action_url:
-        lines.append(f"• <b>GitHub Actions:</b> <a href=\"{escape(action_url)}\">Mở build log</a>")
     return "\n".join(lines)
 
 
@@ -256,24 +252,24 @@ def post_telegram_document_bytes(url: str, payload: dict, filename: str, content
     return response, data
 
 
-def send_full_log_document(base_url: str, channel_id: str, status: str, repo_name: str, build_id: str) -> bool:
+def send_error_log_document(base_url: str, chat_id: str, status: str, repo_name: str, build_id: str) -> bool:
     log_path = select_full_log_path()
     if not log_path:
-        print("Không tìm thấy file log đầy đủ để gửi lên kênh.")
+        print("Không tìm thấy file log lỗi để gửi riêng cho người build.")
         return False
 
     try:
         size = log_path.stat().st_size
     except Exception as exc:
-        print(f"Không thể đọc thông tin file log đầy đủ: {exc}")
+        print(f"Không thể đọc thông tin file log lỗi: {exc}")
         return False
 
     if size <= 0:
-        print("File log đầy đủ đang trống; bỏ qua gửi file .txt.")
+        print("File log lỗi đang trống; bỏ qua gửi file .txt.")
         return False
 
     total_parts = max(1, (size + MAX_LOG_DOCUMENT_BYTES - 1) // MAX_LOG_DOCUMENT_BYTES)
-    base_name = f"{safe_filename_part(build_id)}_{safe_filename_part(status, 'status')}_full_log"
+    base_name = f"{safe_filename_part(build_id)}_{safe_filename_part(status, 'status')}_error_log"
     sent_parts = 0
 
     try:
@@ -289,7 +285,7 @@ def send_full_log_document(base_url: str, channel_id: str, status: str, repo_nam
                     filename = f"{base_name}.txt"
 
                 payload = {
-                    "chat_id": channel_id,
+                    "chat_id": chat_id,
                     "caption": compose_log_caption(status, repo_name, build_id, log_path, size, part_index, total_parts),
                     "parse_mode": "HTML",
                     "disable_content_type_detection": "true",
@@ -297,16 +293,16 @@ def send_full_log_document(base_url: str, channel_id: str, status: str, repo_nam
                 response, data = post_telegram_document_bytes(f"{base_url}/sendDocument", payload, filename, content)
                 if not response.ok:
                     description = str(data.get("description", response.text))
-                    print(f"Không thể gửi full log lên kênh. Lý do: {description}")
+                    print(f"Không thể gửi log lỗi cho người build. Lý do: {description}")
                     return False
 
                 sent_parts += 1
                 if total_parts > 1:
-                    print(f"Đã gửi full log lên kênh: {filename} ({part_index}/{total_parts}).")
+                    print(f"Đã gửi log lỗi cho người build: {filename} ({part_index}/{total_parts}).")
                 else:
-                    print(f"Đã gửi full log lên kênh: {filename}.")
+                    print(f"Đã gửi log lỗi cho người build: {filename}.")
     except Exception as exc:
-        print(f"Lỗi khi gửi full log lên kênh: {exc}")
+        print(f"Lỗi khi gửi log lỗi cho người build: {exc}")
         return False
 
     return sent_parts == total_parts
@@ -559,65 +555,42 @@ def compose_message(status, repo_name, rom_link, build_id, builder_name):
 
     action_url = build_action_url(repo_name)
     builder_text = builder_name if builder_name else "Hệ thống"
-    action_hint = STATUS_ACTIONS.get(status, "Theo dõi build log để xem chi tiết tiến trình.")
+    device_info = collect_device_info()
+    run_info = collect_run_info(repo_name, build_id)
 
     lines = [
-        "<b>Thông báo tiến trình build ROM</b>",
-        "━━━━━━━━━━━━━━━━━━━━",
-        f"<b>Trạng thái:</b> <code>{escape(marker)}</code> — <b>{escape(status_title)}</b>",
-        f"<b>Tóm tắt:</b> {escape(status_desc)}",
-        f"<b>Tiến trình:</b> <code>{escape(progress_text(status, previous_status))}</code>",
-        f"<b>Gợi ý:</b> {escape(action_hint)}",
-        "",
-        "<b>Thông tin bản build</b>",
+        "<b>Build ROM</b>",
+        f"• <b>Trạng thái:</b> <code>{escape(marker)}</code> — <b>{escape(status_title)}</b>",
+        f"• <b>Mã build:</b> <code>{escape(build_id)}</code>",
     ]
 
     add_field(lines, "Người build", builder_text)
-    for label, value in collect_device_info().items():
-        add_field(lines, label, value, code=True)
 
-    lines.extend(["", "<b>Thông tin workflow</b>"])
-    for label, value in collect_run_info(repo_name, build_id).items():
-        add_field(lines, label, value, code=True)
-    add_link(lines, "Build log", action_url, "Mở log GitHub Actions")
-    add_link(lines, "Source ROM", rom_link, "Mở link source ROM")
+    for label in ("Thiết bị", "Mã thiết bị", "ROM nền", "Android / SDK", "File output"):
+        add_field(lines, label, device_info.get(label), code=True)
 
-    if status in {"fail", "cancelled"}:
-        reason, log_path, log_tail = collect_diagnostics(status)
-        lines.extend(["", "<b>Chẩn đoán</b>"])
-        add_field(lines, "Nguyên nhân gần nhất", reason, code=True)
-        add_field(lines, "Log cục bộ", log_path, code=True)
-        if status == "cancelled":
-            lines.append("• <b>Kiểm tra hủy:</b> mở build log và xem Timeline/Jobs, Run ID, Attempt để xác định thời điểm hoặc người đã hủy.")
-        if log_tail:
-            lines.append("<b>Đoạn log cuối:</b>")
-            lines.append(f"<pre>{escape(log_tail)}</pre>")
+    for label in ("Kho lưu trữ", "Lượt chạy", "Nhánh / SHA"):
+        add_field(lines, label, run_info.get(label), code=True)
+
+    add_link(lines, "Build log", action_url, "GitHub Actions")
+    add_link(lines, "Source ROM", rom_link, "Source")
+
+    if status == "fail":
+        reason, _log_path, _log_tail = collect_diagnostics(status)
+        add_field(lines, "Lý do", reason, code=True)
+        lines.append("• <b>Log lỗi:</b> gửi riêng cho người build nếu có user ID.")
+    elif status == "cancelled":
+        reason, _log_path, _log_tail = collect_diagnostics(status)
+        add_field(lines, "Lý do", reason, code=True)
+        lines.append("• <b>Chi tiết:</b> xem Build log trên GitHub Actions.")
+    elif status == "success":
+        lines.append("• <b>Kết quả:</b> build hoàn tất, kiểm tra file output hoặc link tải.")
+    else:
+        lines.append(f"• <b>Tóm tắt:</b> {escape(status_desc)}")
 
     message = "\n".join(lines)
-    if len(message) <= 3900:
-        return message
-
-    # Nếu thông báo Telegram quá dài, rút gọn log nhưng vẫn giữ các trường chính và liên kết.
-    if status in {"fail", "cancelled"}:
-        reason, log_path, log_tail = collect_diagnostics(status)
-        short_tail = log_tail[-700:] if log_tail else ""
-        if short_tail:
-            trimmed_lines = []
-            skipping = False
-            for line in lines:
-                if line == "<b>Đoạn log cuối:</b>":
-                    trimmed_lines.append(line)
-                    trimmed_lines.append(f"<pre>{escape('...\n' + short_tail)}</pre>")
-                    skipping = True
-                    continue
-                if skipping:
-                    if line.startswith("<pre>"):
-                        skipping = False
-                    continue
-                trimmed_lines.append(line)
-            message = "\n".join(trimmed_lines)
     if len(message) > 3900:
-        message = message[:3800] + "\n...\n(Mở build log để xem toàn bộ nội dung.)"
+        message = message[:3800] + "\n...\n(Nội dung đã được rút gọn.)"
     return message
 
 
@@ -680,12 +653,7 @@ def send_notification(status, repo_name, rom_link, channel_id, bot_token, msg_id
                 print(f"Đã lưu TELEGRAM_MSG_ID={new_msg_id} vào GITHUB_ENV.")
             print("Đã gửi thông báo Telegram.")
 
-        if status in FINAL_STATUSES and os.environ.get("TELEGRAM_FULL_LOG_SENT") != "1":
-            if send_full_log_document(base_url, channel_id, status, repo_name, build_id):
-                os.environ["TELEGRAM_FULL_LOG_SENT"] = "1"
-                save_env("TELEGRAM_FULL_LOG_SENT", "1")
-
-        if status in {"success", "fail", "cancelled"} and builder_id:
+        if status in FINAL_STATUSES and builder_id:
             pm_title = {
                 "success": "YÊU CẦU BUILD ROM CỦA BẠN ĐÃ HOÀN TẤT",
                 "fail": "YÊU CẦU BUILD ROM CỦA BẠN BỊ LỖI",
@@ -694,11 +662,13 @@ def send_notification(status, repo_name, rom_link, channel_id, bot_token, msg_id
             pm_lines = [f"<b>{escape(pm_title)}</b>", "", message]
             if status == "success":
                 pm_lines.extend(["", "<b>Tải ROM:</b> <a href=\"https://nothingsvn.vercel.app/\">nothingsvn.vercel.app</a>"])
+            elif status == "fail":
+                pm_lines.extend(["", "<b>Log lỗi:</b> file .txt sẽ được gửi riêng ngay sau tin nhắn này nếu tìm thấy log."])
             else:
-                pm_lines.extend(["", "<b>Gợi ý:</b> mở link Build log trong thông báo để xem đầy đủ lỗi hoặc chi tiết hủy."])
+                pm_lines.extend(["", "<b>Chi tiết:</b> mở Build log để xem lý do workflow bị hủy."])
             pm_text = "\n".join(pm_lines)
             if len(pm_text) > 3900:
-                pm_text = pm_text[:3800] + "\n...\n(Mở build log để xem toàn bộ nội dung.)"
+                pm_text = pm_text[:3800] + "\n...\n(Nội dung đã được rút gọn.)"
             pm_payload = {
                 "chat_id": builder_id,
                 "text": pm_text,
@@ -710,6 +680,11 @@ def send_notification(status, repo_name, rom_link, channel_id, bot_token, msg_id
                 print(f"Đã gửi tin nhắn riêng cho người dùng {builder_id}.")
             else:
                 print(f"Không thể gửi tin nhắn riêng cho người dùng {builder_id}: {pm_data or pm_response.text}")
+
+            if status == "fail" and os.environ.get("TELEGRAM_ERROR_LOG_SENT") != "1":
+                if send_error_log_document(base_url, builder_id, status, repo_name, build_id):
+                    os.environ["TELEGRAM_ERROR_LOG_SENT"] = "1"
+                    save_env("TELEGRAM_ERROR_LOG_SENT", "1")
     except Exception as exc:
         print(f"Lỗi khi gửi/cập nhật thông báo Telegram: {exc}")
 
