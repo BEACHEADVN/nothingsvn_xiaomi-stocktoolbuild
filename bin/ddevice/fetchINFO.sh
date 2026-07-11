@@ -6,7 +6,11 @@ regionTYPE=$(cat $work_dir/bin/ddevice/device_type.txt)
 AndroidVer=$(< $work_dir/build/baserom/images/system/system/build.prop grep "ro.system.build.version.release" |awk 'NR==1' |cut -d '=' -f 2)
 sdkLevel=$(< $work_dir/build/baserom/images/system/system/build.prop grep "ro.system.build.version.sdk" |awk 'NR==1' |cut -d '=' -f 2)
 device_code=$(cat $work_dir/bin/ddevice/device_code.txt)
-name=$(cat $work_dir/bin/ddevice/name_devices.txt)
+name=$(find $work_dir/build/baserom/images/ -type f -name "build.prop" -exec grep -h "ro.product.odm.marketname=" {} + 2>/dev/null | cut -d '=' -f 2 | head -n 1 | tr -d '\r')
+if [ -z "$name" ]; then
+    name=$(cat $work_dir/bin/ddevice/device_code.txt)
+fi
+echo "$name" > $work_dir/bin/ddevice/name_devices.txt
 base_rom_code=$(cat $work_dir/bin/ddevice/base_rom_code.txt)
 rom_os=$(cat $work_dir/bin/ddevice/rom_os.txt)
 starxVER=$(cat $work_dir/Version)
@@ -46,3 +50,5 @@ echo "- Xiaomi Version:"$base_rom_code""
 echo "- BuildTool Version:"$starxVER""
 echo "- OS Type:"$systemtype""
 echo "--------------------------------------------------------"
+
+bash $work_dir/bin/ddevice/genInstall.sh

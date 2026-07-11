@@ -1,7 +1,7 @@
 baserom="$1"
 repo_name="$2"
 prefix_id="$3"
-builder_name="$4"
+export builder_name="$4"
 builder_id="$5"
 work_dir=$(pwd)
 # Import functions
@@ -121,7 +121,7 @@ rm -rf build/baserom/images/super.img
 
 
 mods "Gathering Devices Infomations"
-bash $work_dir/bin/ddevice/getname.sh $getvar
+
 bash $work_dir/bin/ddevice/fetchINFO.sh
 
 # Gửi thông báo đang Build với đầy đủ Codename và Version

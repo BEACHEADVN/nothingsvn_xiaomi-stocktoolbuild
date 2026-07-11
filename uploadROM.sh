@@ -44,20 +44,18 @@ zstd --rm $work_dir/build/baserom/images/super.img -o $work_dir/build/baserom/im
 repack "Generating flashing script"
 if [[ ${baserom_type} == 'payload' ]]; then
     mkdir -p $work_dir/out/${os_type}_${device_code}_${base_rom_code}/images/
-	mv -f $work_dir/build/baserom/images/super.img.zst $work_dir/out/${os_type}_${device_code}_${base_rom_code}/
+    mkdir -p $work_dir/out/${os_type}_${device_code}_${base_rom_code}/super/
+	mv -f $work_dir/build/baserom/images/super.img.zst $work_dir/out/${os_type}_${device_code}_${base_rom_code}/super/
     mv -f $work_dir/build/baserom/images/*.img $work_dir/out/${os_type}_${device_code}_${base_rom_code}/images/
 elif [[ ${baserom_type} == 'br' ]]; then
     mkdir -p $work_dir/out/${os_type}_${device_code}_${base_rom_code}/images/
+    mkdir -p $work_dir/out/${os_type}_${device_code}_${base_rom_code}/super/
     mv -f $work_dir/build/baserom/firmware-update/* $work_dir/out/${os_type}_${device_code}_${base_rom_code}/images/
-    mv -f $work_dir/build/baserom/images/super.img.zst $work_dir/out/${os_type}_${device_code}_${base_rom_code}/
+    mv -f $work_dir/build/baserom/images/super.img.zst $work_dir/out/${os_type}_${device_code}_${base_rom_code}/super/
 fi
 
-# generate dynamic script
-cp -rf $work_dir/bin/script2flash/META-INF $work_dir/out/${os_type}_${device_code}_${base_rom_code}/
-cp -rf $work_dir/bin/script2flash/*.bat $work_dir/out/${os_type}_${device_code}_${base_rom_code}/
-cp -rf $work_dir/bin/script2flash/cust.img $work_dir/out/${os_type}_${device_code}_${base_rom_code}/images/
-echo $device_f > $work_dir/out/${os_type}_${device_code}_${base_rom_code}/META-INF/Data/DeviceCode
-repack "Done"
+cp -rf $work_dir/bin/script2flash/cust.img $work_dir/out/${os_type}_${device_code}_${base_rom_code}/images/ 2>/dev/null || true
+cp -rf $work_dir/bin/script2flash/*.install $work_dir/out/${os_type}_${device_code}_${base_rom_code}/
 
 
 find out/${os_type}_${device_code}_${base_rom_code} |xargs touch
