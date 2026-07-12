@@ -38,20 +38,17 @@ else
     os_type="HyperOS"
 fi
 
-repack "Compressing super.img"
-zstd --rm $work_dir/build/baserom/images/super.img -o $work_dir/build/baserom/images/super.img.zst > /dev/null 2>&1
-
 repack "Generating flashing script"
 if [[ ${baserom_type} == 'payload' ]]; then
     mkdir -p $work_dir/out/${os_type}_${device_code}_${base_rom_code}/images/
     mkdir -p $work_dir/out/${os_type}_${device_code}_${base_rom_code}/super/
-	mv -f $work_dir/build/baserom/images/super.img.zst $work_dir/out/${os_type}_${device_code}_${base_rom_code}/super/
+	mv -f $work_dir/build/baserom/images/super.img $work_dir/out/${os_type}_${device_code}_${base_rom_code}/super/
     mv -f $work_dir/build/baserom/images/*.img $work_dir/out/${os_type}_${device_code}_${base_rom_code}/images/
 elif [[ ${baserom_type} == 'br' ]]; then
     mkdir -p $work_dir/out/${os_type}_${device_code}_${base_rom_code}/images/
     mkdir -p $work_dir/out/${os_type}_${device_code}_${base_rom_code}/super/
     mv -f $work_dir/build/baserom/firmware-update/* $work_dir/out/${os_type}_${device_code}_${base_rom_code}/images/
-    mv -f $work_dir/build/baserom/images/super.img.zst $work_dir/out/${os_type}_${device_code}_${base_rom_code}/super/
+    mv -f $work_dir/build/baserom/images/super.img $work_dir/out/${os_type}_${device_code}_${base_rom_code}/super/
 fi
 
 cp -rf $work_dir/bin/script2flash/cust.img $work_dir/out/${os_type}_${device_code}_${base_rom_code}/images/ 2>/dev/null || true
