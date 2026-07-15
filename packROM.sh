@@ -94,7 +94,7 @@ if [[ "$is_ab_device" == false ]]; then
     GROUP_SIZE=$((superSize - 268435456))   
     lpargs="-F --output build/baserom/images/super.img --metadata-size 65536 --super-name super --metadata-slots 2 --block-size 4096 --device super:$superSize --group=qti_dynamic_partitions:$GROUP_SIZE"
     
-    for pname in odm mi_ext system system_ext product vendor; do
+    for pname in ${super_list}; do
         if [ -f "build/baserom/images/${pname}.img" ]; then
             if [[ "$OSTYPE" == "darwin"* ]]; then
                 subsize=$(stat -f%z "build/baserom/images/${pname}.img")
@@ -111,7 +111,7 @@ else
     
     GROUP_SIZE=$((superSize - 268435456))   # 256MB margin - Fix for error -22
     
-    lpargs="-F --virtual-ab --output $work_dir/build/baserom/images/super.img --metadata-size 65536 --super-name super --metadata-slots 3 --block-size 4096 --device super:$superSize --group=qti_dynamic_partitions_a:$GROUP_SIZE --group=qti_dynamic_partitions_b:$GROUP_SIZE"
+    lpargs="-F --sparse --virtual-ab --output $work_dir/build/baserom/images/super.img --metadata-size 65536 --super-name super --metadata-slots 3 --block-size 4096 --device super:$superSize --group=qti_dynamic_partitions_a:$GROUP_SIZE --group=qti_dynamic_partitions_b:$GROUP_SIZE"
     
     for pname in ${super_list}; do
         if [ -f "build/baserom/images/${pname}.img" ]; then
@@ -123,6 +123,10 @@ else
 fi
 
 # Run lpmake
+if [[ "$lpargs" != *"--partition "* ]]; then
+    repack "Error: No partitions to pack into super.img (Partition table must have at least one entry)."
+    exit 1
+fi
 lpmake $lpargs
 
 if [ -f "$work_dir/build/baserom/images/super.img" ]; then
