@@ -1,6 +1,7 @@
 work_dir=$(pwd)
 source $work_dir/functions.sh
-tools_dir=${work_dir}/bin/$(uname)/$(uname -m)export PATH=$(pwd)/bin/$(uname)/$(uname -m)/:$PATH
+tools_dir=${work_dir}/bin/$(uname)/$(uname -m)
+export PATH=${tools_dir}:$(pwd)/bin/$(uname)/$(uname -m)/:$PATH
 super_list="vendor mi_ext odm odm_dlkm system system_dlkm vendor_dlkm product product_dlkm system_ext"
 os_type=$(cat $work_dir/bin/ddevice/os_type.txt)
 base_rom_code=$(cat $work_dir/bin/ddevice/base_rom_code.txt)
@@ -57,18 +58,18 @@ for pname in ${super_list}; do
          
         thisSize=$(echo "$thisSize + $addSize" | bc)
         if [[ "$PACK_TYPE" == "EXT" ]]; then
-            python3 $work_dir/bin/fspatch.py $work_dir/build/baserom/images/${pname} $work_dir/build/baserom/images/config/${pname}_fs_config >/dev/null 2>&1
-            python3 $work_dir/bin/contextpatch.py $work_dir/build/baserom/images/${pname} $work_dir/build/baserom/images/config/${pname}_file_contexts >/dev/null 2>&1
-            make_ext4fs -J -T $(date +%s) -S $work_dir/build/baserom/images/config/${pname}_file_contexts -l $thisSize -C $work_dir/build/baserom/images/config/${pname}_fs_config -L ${pname} -a ${pname} $work_dir/build/baserom/images/${pname}.img $work_dir/build/baserom/images/${pname} >/dev/null 2>&1
+            python3 $work_dir/bin/fspatch.py $work_dir/build/baserom/images/${pname} $work_dir/build/baserom/images/config/${pname}_fs_config >/dev/null
+            python3 $work_dir/bin/contextpatch.py $work_dir/build/baserom/images/${pname} $work_dir/build/baserom/images/config/${pname}_file_contexts >/dev/null
+            make_ext4fs -J -T $(date +%s) -S $work_dir/build/baserom/images/config/${pname}_file_contexts -l $thisSize -C $work_dir/build/baserom/images/config/${pname}_fs_config -L ${pname} -a ${pname} $work_dir/build/baserom/images/${pname}.img $work_dir/build/baserom/images/${pname} >/dev/null
             if [ -f "$work_dir/build/baserom/images/${pname}.img" ]; then
                 repack "Packing [${pname}.img] success"
             else
                 repack "Packing [${pname}] failed!"
             fi
         elif [[ "$PACK_TYPE" == "EROFS" ]]; then
-            python3 $work_dir/bin/fspatch.py $work_dir/build/baserom/images/${pname} $work_dir/build/baserom/images/config/${pname}_fs_config >/dev/null 2>&1
-            python3 bin/contextpatch.py $work_dir/build/baserom/images/${pname} $work_dir/build/baserom/images/config/${pname}_file_contexts >/dev/null 2>&1
-            mkfs.erofs --quiet -zlz4hc,9 --sparse --mount-point ${pname} --fs-config-file=$work_dir/build/baserom/images/config/${pname}_fs_config --file-contexts=$work_dir/build/baserom/images/config/${pname}_file_contexts $work_dir/build/baserom/images/${pname}.img $work_dir/build/baserom/images/${pname} >/dev/null 2>&1
+            python3 $work_dir/bin/fspatch.py $work_dir/build/baserom/images/${pname} $work_dir/build/baserom/images/config/${pname}_fs_config >/dev/null
+            python3 $work_dir/bin/contextpatch.py $work_dir/build/baserom/images/${pname} $work_dir/build/baserom/images/config/${pname}_file_contexts >/dev/null
+            mkfs.erofs --quiet -zlz4hc,9 --sparse --mount-point ${pname} --fs-config-file=$work_dir/build/baserom/images/config/${pname}_fs_config --file-contexts=$work_dir/build/baserom/images/config/${pname}_file_contexts $work_dir/build/baserom/images/${pname}.img $work_dir/build/baserom/images/${pname} >/dev/null
             if [ -f "$work_dir/build/baserom/images/${pname}.img" ]; then
                 repack "Packing [${pname}.img] success"
             else
@@ -81,7 +82,7 @@ for pname in ${super_list}; do
     fi
 done
 
-if grep -q "ro.build.ab_update=true" build/baserom/images/vendor/build.prop;  then
+if grep -q "ro.build.ab_update=true" $work_dir/build/baserom/images/vendor/build.prop 2>/dev/null;  then
     is_ab_device=true
 else
     is_ab_device=false
@@ -92,17 +93,17 @@ fi
 if [[ "$is_ab_device" == false ]]; then
     repack "Packing super.img for A-only device"
     GROUP_SIZE=$((superSize - 268435456))   
-    lpargs="-F --output build/baserom/images/super.img --metadata-size 65536 --super-name super --metadata-slots 2 --block-size 4096 --device super:$superSize --group=qti_dynamic_partitions:$GROUP_SIZE"
+    lpargs="-F --output $work_dir/build/baserom/images/super.img --metadata-size 65536 --super-name super --metadata-slots 2 --block-size 4096 --device super:$superSize --group=qti_dynamic_partitions:$GROUP_SIZE"
     
     for pname in ${super_list}; do
-        if [ -f "build/baserom/images/${pname}.img" ]; then
+        if [ -f "$work_dir/build/baserom/images/${pname}.img" ]; then
             if [[ "$OSTYPE" == "darwin"* ]]; then
-                subsize=$(stat -f%z "build/baserom/images/${pname}.img")
+                subsize=$(stat -f%z "$work_dir/build/baserom/images/${pname}.img")
             else
-                subsize=$(du -sb "build/baserom/images/${pname}.img" | awk '{print $1}')
+                subsize=$(du -sb "$work_dir/build/baserom/images/${pname}.img" | awk '{print $1}')
             fi
             repack "Super sub-partition [$pname] size: [$subsize]"
-            lpargs="$lpargs --partition ${pname}:readonly:${subsize}:qti_dynamic_partitions --image ${pname}=build/baserom/images/${pname}.img"
+            lpargs="$lpargs --partition ${pname}:readonly:${subsize}:qti_dynamic_partitions --image ${pname}=$work_dir/build/baserom/images/${pname}.img"
         fi
     done
 
@@ -114,10 +115,10 @@ else
     lpargs="-F --sparse --virtual-ab --output $work_dir/build/baserom/images/super.img --metadata-size 65536 --super-name super --metadata-slots 3 --block-size 4096 --device super:$superSize --group=qti_dynamic_partitions_a:$GROUP_SIZE --group=qti_dynamic_partitions_b:$GROUP_SIZE"
     
     for pname in ${super_list}; do
-        if [ -f "build/baserom/images/${pname}.img" ]; then
-            subsize=$(du -sb "build/baserom/images/${pname}.img" | awk '{print $1}')
+        if [ -f "$work_dir/build/baserom/images/${pname}.img" ]; then
+            subsize=$(du -sb "$work_dir/build/baserom/images/${pname}.img" | awk '{print $1}')
             repack "Super sub-partition [$pname] size: [$subsize]"
-            lpargs="$lpargs --partition ${pname}_a:readonly:${subsize}:qti_dynamic_partitions_a --image ${pname}_a=build/baserom/images/${pname}.img --partition ${pname}_b:readonly:0:qti_dynamic_partitions_b"
+            lpargs="$lpargs --partition ${pname}_a:readonly:${subsize}:qti_dynamic_partitions_a --image ${pname}_a=$work_dir/build/baserom/images/${pname}.img --partition ${pname}_b:readonly:0:qti_dynamic_partitions_b"
         fi
     done
 fi
