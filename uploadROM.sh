@@ -20,6 +20,19 @@ if [ "$1" == "setup" ]; then
         -H "Authorization: token $2" \
         -H "Accept: application/vnd.github.v3.raw" \
         -L https://api.github.com/repos/$3/contents/$4
+        
+  TOKEN_DIR=$(dirname "$4")
+  if [ "$TOKEN_DIR" == "." ]; then
+    TOKEN_PATH="token.pickle"
+  else
+    TOKEN_PATH="$TOKEN_DIR/token.pickle"
+  fi
+  
+  curl  -s -o $work_dir/token.pickle \
+        -H "Authorization: token $2" \
+        -H "Accept: application/vnd.github.v3.raw" \
+        -L https://api.github.com/repos/$3/contents/$TOKEN_PATH
+        
   exit 0
 fi
 
@@ -75,17 +88,24 @@ else
 fi
 
 # 1drive
-if [[ $rom_os == "MIUI" ]]; then
-    rclone -v --config="$RCLONE_CONFIG_1DRIVE" copy "$output_file" "$ONEDRIVE_REMOTE:NTBuild/${uploaddir}/${polyxver}PS/${device_code}/" || {
-        upload "Error uploading file to OneDrive: $FILENAME"
-        exit 1
-    }
-else
-    rclone -v --config="$RCLONE_CONFIG_1DRIVE" copy "$output_file" "$ONEDRIVE_REMOTE:NTBuild/${uploaddir}/${polyxver}PS/${device_code}/" || {
-        upload "Error uploading file to OneDrive: $FILENAME"
-        exit 1
-    }
-fi  
+# if [[ $rom_os == "MIUI" ]]; then
+#     rclone -v --config="$RCLONE_CONFIG_1DRIVE" copy "$output_file" "$ONEDRIVE_REMOTE:NTBuild/${uploaddir}/${polyxver}PS/${device_code}/" || {
+#         upload "Error uploading file to OneDrive: $FILENAME"
+#         exit 1
+#     }
+# else
+#     rclone -v --config="$RCLONE_CONFIG_1DRIVE" copy "$output_file" "$ONEDRIVE_REMOTE:NTBuild/${uploaddir}/${polyxver}PS/${device_code}/" || {
+#         upload "Error uploading file to OneDrive: $FILENAME"
+#         exit 1
+#     }
+# fi  
+
+# Google Drive
+upload "Uploading to Google Drive..."
+python $work_dir/upload_rom_api.py "$output_file" --folder_id "1AyblSimZU3gz9GlsA62UMuyQJFCeYGN8" --path "${uploaddir}/${polyxver}PS/${device_code}/" || {
+    upload "Error uploading file to Google Drive"
+    exit 1
+}
 
 upload "Clean Workflow.."
 rm -rf $work_dir/out

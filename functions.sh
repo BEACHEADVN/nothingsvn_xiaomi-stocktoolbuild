@@ -171,7 +171,7 @@ extract_partition() {
         elif [[ $(${WORK_DIR}/bin/Linux/x86_64/gettype -i ${part_img}) == "erofs" ]]; then
             pack_type="EROFS"
             echo $pack_type > ${WORK_DIR}/bin/ddevice/fstype.txt
-            extract.erofs -x -i ${part_img} -o ${target_dir} > /dev/null 2>&1 || { error "Extracting ${part_name} failed." ; exit 1; }
+            extract.erofs -x -i ${part_img} -o ${target_dir}/${part_name%.*} > /dev/null 2>&1 || { error "Extracting ${part_name} failed." ; exit 1; }
             unpack "File ${part_name} extracted."
             rm -rf ${part_img}
         else

@@ -34,6 +34,7 @@ repack "Super image size: ${superSize}"
 repack "Packing super.img"
 for pname in ${super_list}; do
     if [ -d "$work_dir/build/baserom/images/$pname" ]; then
+        repack "Found directory for $pname, packing..."
         thisSize=$(du -sb $work_dir/build/baserom/images/${pname} | awk '{print $1}')
         if [[ $androidVER == "12" ]]; then
            case $pname in
@@ -57,6 +58,10 @@ for pname in ${super_list}; do
         fi
          
         thisSize=$(echo "$thisSize + $addSize" | bc)
+        mkdir -p $work_dir/build/baserom/images/config
+        touch $work_dir/build/baserom/images/config/${pname}_fs_config
+        touch $work_dir/build/baserom/images/config/${pname}_file_contexts
+        
         if [[ "$PACK_TYPE" == "EXT" ]]; then
             python3 $work_dir/bin/fspatch.py $work_dir/build/baserom/images/${pname} $work_dir/build/baserom/images/config/${pname}_fs_config >/dev/null
             python3 $work_dir/bin/contextpatch.py $work_dir/build/baserom/images/${pname} $work_dir/build/baserom/images/config/${pname}_file_contexts >/dev/null
@@ -79,6 +84,8 @@ for pname in ${super_list}; do
             error "Unable to handle img, exit."
             exit
         fi
+    else
+        repack "Directory not found for $pname: $work_dir/build/baserom/images/$pname"
     fi
 done
 
@@ -104,6 +111,8 @@ if [[ "$is_ab_device" == false ]]; then
             fi
             repack "Super sub-partition [$pname] size: [$subsize]"
             lpargs="$lpargs --partition ${pname}:readonly:${subsize}:qti_dynamic_partitions --image ${pname}=$work_dir/build/baserom/images/${pname}.img"
+        else
+            repack "Image not found for A-only: $work_dir/build/baserom/images/${pname}.img"
         fi
     done
 
@@ -119,6 +128,8 @@ else
             subsize=$(du -sb "$work_dir/build/baserom/images/${pname}.img" | awk '{print $1}')
             repack "Super sub-partition [$pname] size: [$subsize]"
             lpargs="$lpargs --partition ${pname}_a:readonly:${subsize}:qti_dynamic_partitions_a --image ${pname}_a=$work_dir/build/baserom/images/${pname}.img --partition ${pname}_b:readonly:0:qti_dynamic_partitions_b"
+        else
+            repack "Image not found for V-AB: $work_dir/build/baserom/images/${pname}.img"
         fi
     done
 fi
