@@ -6,5 +6,4 @@ target_dir="$work_dir/bin/package/"
 
 bash $target_dir/DISABLE_AVB/DISABLEavb.sh
 bash $target_dir/RefreshRate/1hz.sh
-bash $target_dir/NOTIFICATION_FIX/notificationFIX.sh
 mods "Add Package Done"
