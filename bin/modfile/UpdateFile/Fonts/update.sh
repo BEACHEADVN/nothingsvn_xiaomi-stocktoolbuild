@@ -53,3 +53,34 @@ else
 mods "Global ROM!No Adding..."
 fi
 mods "Done"
+# ======================================================================
+# ĐOẠN CHÈN THÊM: XỬ LÝ FONT TỰ ĐỘNG CHO TẤT CẢ CÁC NỀN ROM (OS3)
+# ======================================================================
+FONT_SOURCE="$work_dir/bin/modfile/UpdateFile/Fonts/HyperOS"
+SYS_TARGET="$work_dir/build/baserom/images/system/system/fonts"
+PROD_TARGET="$work_dir/build/baserom/images/product/fonts"
+
+copy_bauhaus_from_list() {
+    local list_file="$1"
+    local target_dir="$2"
+    local label="$3"
+    if [ -f "$list_file" ]; then
+        mods "Checking list: $(basename $list_file)"
+        while IFS= read -r target_name || [ -n "$target_name" ]; do
+            [[ -z "$target_name" || "$target_name" =~ ^# ]] && continue
+            target_name=$(echo "$target_name" | tr -d '\r' | xargs)
+            if [ -f "$FONT_SOURCE/Bauhaus.ttf" ]; then
+                cp -rf "$FONT_SOURCE/Bauhaus.ttf" "$target_dir/$target_name"
+                echo " -> [Font $label] Copied Bauhaus.ttf to $target_name"
+            fi
+        done < "$list_file"
+    fi
+}
+
+# Thực thi lệnh copy danh sách font bắt buộc cho OS3 (áp dụng mọi vùng miền)
+if [[ $rom_os == "OS3" ]] && [[ $androidVer -le "16" ]]; then
+    mods "Force processing Font List for OS3..."
+    copy_bauhaus_from_list "$FONT_SOURCE/system_fonts.list" "$SYS_TARGET" "System"
+    copy_bauhaus_from_list "$FONT_SOURCE/product_fonts.list" "$PROD_TARGET" "Product"
+fi
+# ======================================================================
