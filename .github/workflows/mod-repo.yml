@@ -1,0 +1,391 @@
+name: Mod repo
+on:
+  workflow_dispatch: # Kích hoạt thủ công bằng nút bấm hoặc API dispatch
+    inputs:
+      enable_rclone:
+        description: 'Bật chèn step Rclone'
+        required: true
+        type: boolean
+        default: false
+      enable_pixeldrain:
+        description: 'Bật chèn step Pixeldrain'
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  inject-steps:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@main
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+
+      # Step xử lý kiểm tra và sao chép cấu trúc tài nguyên (Boot & Fonts chi tiết)
+      - name: Sync Resources (Boot and Specific Fonts)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        shell: bash
+        run: |
+          BOOT_DIR="./bin/modfile/UpdateFile/Boot"
+          FONT_DIR="./bin/modfile/UpdateFile/Fonts/HyperOS"
+          
+          NEED_BOOT=0
+          NEED_FONT=0
+
+          # 1. Kiểm tra chính xác sự tồn tại của 3 file mục tiêu trong thư mục Boot
+          echo "🔍 Kiểm tra các file yêu cầu trong $BOOT_DIR..."
+          if [ -f "$BOOT_DIR/bootanimation.zip" ] && [ -f "$BOOT_DIR/bootaudio.mp3" ] && [ -f "$BOOT_DIR/update.sh" ]; then
+            echo "✅ Thư mục Boot đã có đầy đủ 3 file (bootanimation.zip, bootaudio.mp3, update.sh)."
+          else
+            echo "⚠️ Thiếu một hoặc nhiều file mục tiêu trong thư mục Boot. Đánh dấu cần tải bổ sung..."
+            mkdir -p "$BOOT_DIR"
+            NEED_BOOT=1
+          fi
+
+          # 2. Kiểm tra chính xác sự tồn tại của 3 file font mục tiêu
+          echo "🔍 Kiểm tra các file font trong $FONT_DIR..."
+          if [ -f "$FONT_DIR/Bauhaus.ttf" ] && [ -f "$FONT_DIR/product_fonts.list" ] && [ -f "$FONT_DIR/system_fonts.list" ]; then
+            echo "✅ Đã tìm thấy đầy đủ 3 file font (Bauhaus.ttf, product_fonts.list, system_fonts.list)."
+          else
+            echo "⚠️ Thiếu một hoặc nhiều file font mục tiêu trong thư mục Fonts. Đánh dấu cần tải bổ sung..."
+            mkdir -p "$FONT_DIR"
+            NEED_FONT=1
+          fi
+
+          # 3. Tiến hành tải từ My-Assets nếu cần thiết
+          if [ "$NEED_BOOT" = "1" ] || [ "$NEED_FONT" = "1" ]; then
+            echo "📥 Đang tải tạm thời repository My-Assets..."
+            git clone --depth 1 https://x-access-token:${GH_TOKEN}@github.com/BEACHEADVN/My-Assets.git assets_temp
+            
+            if [ "$NEED_BOOT" = "1" ]; then
+              echo "🚚 Sao chép file sang Boot..."
+              cp -r assets_temp/ROM/boot/* "$BOOT_DIR/" 2>/dev/null || echo "Thư mục ROM/boot rỗng."
+              
+              # Kiểm tra và xử lý đổi tên file update-sh-boot.txt thành update.sh
+              if [ -f "assets_temp/ROM/repo/update-sh-boot.txt" ]; then
+                echo "🔄 Đang sao chép và đổi tên update-sh-boot.txt thành update.sh..."
+                cp "assets_temp/ROM/repo/update-sh-boot.txt" "$BOOT_DIR/update.sh"
+                chmod +x "$BOOT_DIR/update.sh"
+              else
+                echo "⚠️ Không tìm thấy file update-sh-boot.txt trong assets_temp/ROM/repo/"
+              fi
+            fi
+
+            if [ "$NEED_FONT" = "1" ]; then
+              echo "🚚 Sao chép toàn bộ font từ ROM/font sang Fonts/HyperOS..."
+              cp -r assets_temp/ROM/font/* "$FONT_DIR/" 2>/dev/null || echo "Thư mục ROM/font trống."
+            fi
+
+            rm -rf assets_temp
+            echo "SHOULD_PUSH_RESOURCES=1" >> $GITHUB_ENV
+          else
+            echo "✅ Tất cả thư mục tài nguyên và file font đều đầy đủ. Bỏ qua tải."
+            echo "SHOULD_PUSH_RESOURCES=0" >> $GITHUB_ENV
+          fi
+          
+      - name: Inject Rclone Step
+        if: ${{ github.event.inputs.enable_rclone == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          curl -s -H "Authorization: token $GH_TOKEN" -H "Accept: application/vnd.github.v3.raw" \
+            -L "https://api.github.com/repos/BEACHEADVN/My-Assets/contents/ROM/repo/tai-rclone-tu-repo-private.txt?ref=main" \
+            -o rclone.txt
+          python3 - << 'EOF'
+          import os
+          build_path = ".github/workflows/build.yml"
+          if os.path.exists(build_path):
+              with open(build_path, "r", encoding="utf-8") as f:
+                  build_lines = f.readlines()
+              if any("Fetch Secret rclone.conf to Root Directory" in line for line in build_lines):
+                  print("Step Rclone đã tồn tại, bỏ qua.")
+                  exit(0)
+              target_idx = -1
+              for i, line in enumerate(build_lines):
+                  if "- name: Set up Rclone" in line:
+                      target_idx = i
+                      break
+              if target_idx != -1:
+                  line_target = build_lines[target_idx]
+                  indent_size = len(line_target) - len(line_target.lstrip())
+                  base_indent = " " * indent_size
+                  with open("rclone.txt", "r", encoding="utf-8") as f:
+                      rclone_content = f.read()
+                  formatted_lines = []
+                  for sub_line in rclone_content.splitlines():
+                      stripped = sub_line.strip()
+                      if not stripped:
+                          formatted_lines.append("")
+                          continue
+                      if stripped.startswith("- name:"):
+                          formatted_lines.append(f"{base_indent}{stripped}")
+                      elif stripped.startswith("env:") or stripped.startswith("run:") or stripped.startswith("id:") or stripped.startswith("shell:") or stripped.startswith("if:"):
+                          formatted_lines.append(f"{base_indent}  {stripped}")
+                      else:
+                          formatted_lines.append(f"{base_indent}    {stripped}")
+                  rclone_code = "\n".join(formatted_lines) + "\n\n"
+                  build_lines.insert(target_idx, rclone_code)
+                  with open(build_path, "w", encoding="utf-8") as f:
+                      f.writelines(build_lines)
+                  print("Đã chèn Rclone chuẩn cấu trúc thành công.")
+          EOF
+          
+      - name: Inject Pixeldrain Step
+        if: ${{ github.event.inputs.enable_pixeldrain == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          curl -s -H "Authorization: token $GH_TOKEN" -H "Accept: application/vnd.github.v3.raw" \
+            -L "https://api.github.com/repos/BEACHEADVN/My-Assets/contents/ROM/repo/upload-pixeldrain.txt?ref=main" \
+            -o pixeldrain.txt
+          python3 - << 'EOF'
+          import os
+          build_path = ".github/workflows/build.yml"
+          if os.path.exists(build_path):
+              with open(build_path, "r", encoding="utf-8") as f:
+                  build_lines = f.readlines()
+              if any("Split Large File" in line for line in build_lines):
+                  print("Step Pixeldrain đã tồn tại, bỏ qua.")
+                  exit(0)
+              target_idx = -1
+              for i, line in enumerate(build_lines):
+                  if "- name: Send success notification" in line:
+                      target_idx = i
+                      break
+              if target_idx != -1:
+                  line_target = build_lines[target_idx]
+                  indent_size = len(line_target) - len(line_target.lstrip())
+                  base_indent = " " * indent_size
+                  with open("pixeldrain.txt", "r", encoding="utf-8") as f:
+                      pixeldrain_content = f.read()
+                  formatted_lines = []
+                  for sub_line in pixeldrain_content.splitlines():
+                      stripped = sub_line.strip()
+                      if not stripped:
+                          formatted_lines.append("")
+                          continue
+                      if stripped.startswith("- name:"):
+                          formatted_lines.append(f"{base_indent}{stripped}")
+                      elif stripped.startswith("env:") or stripped.startswith("run:") or stripped.startswith("id:") or stripped.startswith("shell:") or stripped.startswith("if:"):
+                          formatted_lines.append(f"{base_indent}  {stripped}")
+                      else:
+                          formatted_lines.append(f"{base_indent}    {stripped}")
+                  pixeldrain_code = "\n".join(formatted_lines) + "\n\n"
+                  build_lines.insert(target_idx, pixeldrain_code)
+                  with open(build_path, "w", encoding="utf-8") as f:
+                      f.writelines(build_lines)
+                  print("Đã chèn Pixeldrain chuẩn cấu trúc thành công.")
+          EOF
+          
+      - name: Modify uploadROM.sh Script
+        shell: bash
+        run: |
+          if [ -f ./uploadROM.sh ]; then
+            echo "Modify uploadROM.sh script..."
+            
+            # 1. Replace ONEDRIVE_REMOTE value
+            sed -i 's/ONEDRIVE_REMOTE=.*/ONEDRIVE_REMOTE="nothings-toolbuild"/g' ./uploadROM.sh
+            
+            # 2. Check and update Google Drive Folder ID
+            if grep -q '--folder_id "1aJw0uWIMD7Yc1n4O1mjbI0YLHjRevfxl"' ./uploadROM.sh; then
+              echo "Folder ID is already correct. Skipping update."
+            else
+              echo "Updating Folder ID..."
+              sed -i 's/--folder_id "[^"]*"/--folder_id "1aJw0uWIMD7Yc1n4O1mjbI0YLHjRevfxl"/g' ./uploadROM.sh
+            fi
+            
+            # 3. Remove cleanup lines for out and build directories
+            sed -i '/rm -rf \$work_dir\/out/d' ./uploadROM.sh
+            sed -i '/rm -rf \$work_dir\/build/d' ./uploadROM.sh
+            
+            # 4. Remove exit 1 in OneDrive block using Perl
+            perl -0777 -pi -e 's/(if\s+\[\[\s+\$rom_os\s+==\s+"MIUI"\s+\]\];\s+then.*?upload\s+"Error uploading file to OneDrive: \$FILENAME"\s*\n\s*)exit 1(\s*\n\s*}\s*\n\s*else.*?upload\s+"Error uploading file to OneDrive: \$FILENAME"\s*\n\s*)exit 1/\1\2/sg' ./uploadROM.sh
+            
+            # 5. Remove exit 1 in Google Drive upload block
+            sed -i '/upload "Error uploading file to Google Drive"/{n; /exit 1/d}' ./uploadROM.sh
+            
+            echo "Script modification complete!"
+          else
+            echo "uploadROM.sh file not found!"
+            exit 1
+          fi
+          
+      - name: Fetch and Inject Font Logic from GitHub
+        shell: bash
+        run: |
+          FONT_SCRIPT="./bin/modfile/UpdateFile/Fonts/update.sh"
+          INJECT_URL="https://raw.githubusercontent.com/BEACHEADVN/My-Assets/main/ROM/repo/mod-font-update-sh.txt"
+          
+          if [ -f "$FONT_SCRIPT" ]; then
+            # Kiểm tra xem logic này đã được chèn trước đó chưa
+            if grep -q "copy_bauhaus_from_list" "$FONT_SCRIPT"; then
+              echo "✅ Logic xử lý font list đã tồn tại trong update.sh, bỏ qua chèn để tránh trùng lặp."
+            else
+              echo "📥 Đang tải đoạn code chèn từ GitHub..."
+              curl -sL "$INJECT_URL" > /tmp/font_inject.txt
+              
+              # Kiểm tra xem file tải về có nội dung hợp lệ không
+              if [ -s /tmp/font_inject.txt ]; then
+                echo "📝 Tiến hành chèn code vào cuối file update.sh..."
+                
+                # Đảm bảo file kết thúc bằng một dòng mới trước khi nối thêm
+                sed -i -e '$a\' "$FONT_SCRIPT"
+                
+                # Nối nội dung file /tmp/font_inject.txt vào cuối file target
+                cat /tmp/font_inject.txt >> "$FONT_SCRIPT"
+                rm -f /tmp/font_inject.txt
+                
+                chmod +x "$FONT_SCRIPT"
+                echo "✅ Đã chèn code vào cuối file update.sh (Fonts) thành công!"
+              else
+                echo "❌ Tải nội dung từ GitHub thất bại hoặc file trống!"
+              fi
+            fi
+          else
+            echo "⚠️ Không tìm thấy file gốc tại $FONT_SCRIPT để chỉnh sửa."
+          fi
+          
+      - name: Inject Update Toolbuild Status Step
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          # Dùng link raw của GitHub để tải nội dung step cần chèn
+          curl -s -H "Authorization: token $GH_TOKEN" -H "Accept: application/vnd.github.v3.raw" \
+            -L "https://api.github.com/repos/BEACHEADVN/My-Assets/contents/ROM/repo/step-cap-nhat-trang-thai-toolbuild.txt?ref=main" \
+            -o status_step.txt
+          python3 - << 'EOF'
+          import os
+          build_path = ".github/workflows/build.yml"
+          if os.path.exists(build_path):
+              with open(build_path, "r", encoding="utf-8") as f:
+                  build_lines = f.readlines()
+              
+              # Kiểm tra file đã chèn chưa bằng cụm từ chỉ định
+              if any("Update Status to My-Assets" in line for line in build_lines):
+                  print("Step Update Toolbuild Status đã tồn tại, bỏ qua.")
+                  exit(0)
+                  
+              target_idx = -1
+              # Duyệt tìm step đích để chèn vào ngay phía sau
+              for i, line in enumerate(build_lines):
+                  if "- name: Upload to Pixeldrain" in line:
+                      target_idx = i
+                      break
+                      
+              if target_idx != -1:
+                  line_target = build_lines[target_idx]
+                  indent_size = len(line_target) - len(line_target.lstrip())
+                  base_indent = " " * indent_size
+                  
+                  insert_idx = target_idx + 1
+                  while insert_idx < len(build_lines):
+                      next_line = build_lines[insert_idx].strip()
+                      if build_lines[insert_idx].startswith(base_indent + "-"):
+                          break
+                      if next_line and not build_lines[insert_idx].startswith(base_indent):
+                          break
+                      insert_idx += 1
+                  with open("status_step.txt", "r", encoding="utf-8") as f:
+                      status_content = f.read()
+                      
+                  formatted_lines = []
+                  for sub_line in status_content.splitlines():
+                      stripped = sub_line.strip()
+                      if not stripped:
+                          formatted_lines.append("")
+                          continue
+                      if stripped.startswith("- name:"):
+                          formatted_lines.append(f"{base_indent}{stripped}")
+                      elif stripped.startswith("env:") or stripped.startswith("run:") or stripped.startswith("id:") or stripped.startswith("shell:") or stripped.startswith("if:"):
+                          formatted_lines.append(f"{base_indent}  {stripped}")
+                      else:
+                          formatted_lines.append(f"{base_indent}    {stripped}")
+                          
+                  status_code = "\n".join(formatted_lines) + "\n\n"
+                  build_lines.insert(insert_idx, status_code)
+                  
+                  with open(build_path, "w", encoding="utf-8") as f:
+                      f.writelines(build_lines)
+                  print("Đã chèn step Cập nhật trạng thái Toolbuild chuẩn cấu trúc thành công.")
+              else:
+                  print("⚠️ Không tìm thấy step '- name: Upload to Pixeldrain' trong file build.yml.")
+          EOF
+
+      # Step chèn cài đặt p7zip-full và jq chuẩn cấu trúc lề
+      - name: Inject Packages into build.yml
+        run: |
+          python3 - << 'EOF'
+          import os
+          build_path = ".github/workflows/build.yml"
+          if os.path.exists(build_path):
+              with open(build_path, "r", encoding="utf-8") as f:
+                  lines = f.readlines()
+              
+              # Kiểm tra xem gói đã được cấu hình chèn chưa để tránh lặp lệnh
+              if any("p7zip-full" in line and "jq" in line for line in lines):
+                  print("✅ Gói p7zip-full và jq đã có sẵn trong file build.yml, bỏ qua.")
+                  exit(0)
+                  
+              target_idx = -1
+              # Định vị chính xác dòng chạy setup.sh để chèn ngay phía dưới
+              for i, line in enumerate(lines):
+                  if "sudo bash setup.sh" in line:
+                      target_idx = i
+                      break
+              
+              if target_idx != -1:
+                  print("📝 Tiến hành chèn câu lệnh cài đặt package ngay sau setup.sh...")
+                  # Lấy chuẩn khoảng cách thụt lề (indent) của dòng trước
+                  line_target = lines[target_idx]
+                  indent_size = len(line_target) - len(line_target.lstrip())
+                  step_indent = " " * indent_size
+                  
+                  # Chèn lệnh mới vào ngay dưới dòng setup.sh
+                  lines.insert(target_idx + 1, f"{step_indent}sudo apt-get install -y p7zip-full jq 2>&1 | tee -a build_action.log\n")
+                  
+                  with open(build_path, "w", encoding="utf-8") as f:
+                      f.writelines(lines)
+                  print("✅ Đã chèn đẹp lệnh cài đặt p7zip-full và jq vào build.yml!")
+              else:
+                  print("⚠️ Không tìm thấy dòng 'sudo bash setup.sh' trong build.yml.")
+          EOF
+
+      - name: Modify packROM.sh Script
+        shell: bash
+        run: |
+          if [ -f ./packROM.sh ]; then
+            echo "📝 Đang tiến hành xóa flag --sparse trong packROM.sh..."
+            
+            # Xóa cụm từ '--sparse ' (bao gồm cả khoảng trắng đi kèm nếu có) trong lệnh mkfs.erofs
+            sed -i 's/mkfs.erofs \(.*\)--sparse \(.*\)/mkfs.erofs \1\2/g' ./packROM.sh
+            
+            echo "✅ Đã loại bỏ flag hoàn tất!"
+          else
+            echo "⚠️ Không tìm thấy file packROM.sh để chỉnh sửa."
+          fi
+
+      - name: Push changes to Repository
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Hợp thức hóa các file đã chỉnh sửa trực tiếp trong repo
+          git add .github/workflows/build.yml uploadROM.sh ./bin/modfile/UpdateFile/Fonts/update.sh packROM.sh
+          
+          # Chỉ tiến hành git add tài nguyên nếu có thay đổi tải về từ My-Assets
+          if [ "${{ env.SHOULD_PUSH_RESOURCES }}" = "1" ]; then
+            git add ./bin/modfile/UpdateFile/Boot/ ./bin/modfile/UpdateFile/Fonts/HyperOS/
+          fi
+          
+          git commit -m "Automated: Sync steps, update uploadROM.sh (with compression parameters), inject Font lists, manage Boot and Font files, and install essential utilities" || echo "Không có thay đổi để commit"
+          
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          git push origin main
