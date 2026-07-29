@@ -64,6 +64,7 @@ jobs:
           sudo pip3 install setuptools 2>&1 | tee -a build_action.log
           sudo pip3 install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client 2>&1 | tee -a build_action.log
           python notify.py start "${{ github.repository }}" "${{ inputs.input_url }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
+          sudo pip3 install lz4
 
       - name: Grant file permissions
         run: |
