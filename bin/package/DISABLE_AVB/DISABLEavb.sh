@@ -9,7 +9,11 @@ if grep -qw "$device_code" "$work_dir/bin/package/DISABLE_AVB/avb_list.txt"; the
     
     # Process vendor_boot.img using vbpatcher.py
     if [ -f "$work_dir/build/baserom/images/vendor_boot.img" ]; then
-        python3 "$work_dir/bin/vbpatcher.py" unpack -i "$work_dir/build/baserom/images/vendor_boot.img" -o "$work_dir/build/baserom/boot" > /dev/null 2>&1
+        # Tạo thư mục output trước để tránh lỗi unpack
+        mkdir -p "$work_dir/build/baserom/boot"
+
+        python3 "$work_dir/bin/vbpatcher.py" unpack -i "$work_dir/build/baserom/images/vendor_boot.img" -o "$work_dir/build/baserom/boot"
+        
         if [ -d "$work_dir/build/baserom/boot/ramdisk_root/avb" ]; then
             for i in "$work_dir/build/baserom/images"/vbmeta*.img; do
                 python3 "$work_dir/bin/patch-vbmeta.py" "$i" > /dev/null 2>&1
@@ -20,18 +24,23 @@ if grep -qw "$device_code" "$work_dir/bin/package/DISABLE_AVB/avb_list.txt"; the
                 "$work_dir/build/baserom/boot/config.json" > "$work_dir/build/baserom/boot/config.bak" && mv -f "$work_dir/build/baserom/boot/config.bak" "$work_dir/build/baserom/boot/config.json"
             info "Patched vbmeta images"
         fi
-        find "$work_dir/build/baserom/boot/" -type f -name "*fstab*" | while read -r fstab; do
-            sed -i "s/,avb_keys=.*avbpubkey//g" "$fstab"
-            sed -i "s/,avb=vbmeta_system//g" "$fstab"
-            sed -i "s/,avb=vbmeta_vendor//g" "$fstab"
-            sed -i "s/,avb=vbmeta//g" "$fstab"
-            sed -i "s/,avb//g" "$fstab"
-            sed -i 's/,avb.*system//g' "$fstab"
-            sed -i 's/,avb,/,/g' "$fstab"
-            sed -i 's/,avb=.*a,/,/g' "$fstab"
-            sed -i 's/,avb_keys.*key//g' "$fstab"
-        done
-        python3 "$work_dir/bin/vbpatcher.py" repack -c "$work_dir/build/baserom/boot/config.json" -o "$work_dir/build/baserom/images/vendor_boot.img" > /dev/null 2>&1 && rm -rf "$work_dir/build/baserom/boot"
+
+        # Chỉ thực hiện find nếu thư mục boot tồn tại
+        if [ -d "$work_dir/build/baserom/boot" ]; then
+            find "$work_dir/build/baserom/boot/" -type f -name "*fstab*" | while read -r fstab; do
+                sed -i "s/,avb_keys=.*avbpubkey//g" "$fstab"
+                sed -i "s/,avb=vbmeta_system//g" "$fstab"
+                sed -i "s/,avb=vbmeta_vendor//g" "$fstab"
+                sed -i "s/,avb=vbmeta//g" "$fstab"
+                sed -i "s/,avb//g" "$fstab"
+                sed -i 's/,avb.*system//g' "$fstab"
+                sed -i 's/,avb,/,/g' "$fstab"
+                sed -i 's/,avb=.*a,/,/g' "$fstab"
+                sed -i 's/,avb_keys.*key//g' "$fstab"
+            done
+            python3 "$work_dir/bin/vbpatcher.py" repack -c "$work_dir/build/baserom/boot/config.json" -o "$work_dir/build/baserom/images/vendor_boot.img" > /dev/null 2>&1 && rm -rf "$work_dir/build/baserom/boot"
+        fi
+
         [ -f "$work_dir/build/baserom/images/vendor_boot.img" ] \
             && info "Patched vendor_boot.img" \
             || error "Can not patch vendor_boot.img"
