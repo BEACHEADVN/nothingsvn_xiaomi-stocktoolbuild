@@ -153,7 +153,11 @@ def unpack_cpio(data, out_dir):
 
 
 def pack_cpio(in_dir):
-    with open(os.path.join(in_dir, "ramdisk_meta.json"), "r") as f:
+    meta_path = os.path.join(in_dir, "ramdisk_meta.json")
+    if not os.path.exists(meta_path):
+        return b""
+
+    with open(meta_path, "r") as f:
         metadata = json.load(f)
     existing_files = set(m["name"] for m in metadata)
     for root, dirs, files in os.walk(in_dir):
@@ -275,11 +279,16 @@ def unpack(args):
 
         f.seek(page_size)
         ramdisk_data = read_padded(f, config["vendor_ramdisk_size"], page_size)
+        
+        # Đảm bảo ramdisk_root luôn được khởi tạo
+        ramdisk_root = os.path.join(out_dir, "ramdisk_root")
+        os.makedirs(ramdisk_root, exist_ok=True)
+
         try:
             print("> Identifying ramdisk compression...")
             fmt, uncompressed = decompress_ramdisk(ramdisk_data)
             config["ramdisk_compression"] = fmt
-            unpack_cpio(uncompressed, os.path.join(out_dir, "ramdisk_root"))
+            unpack_cpio(uncompressed, ramdisk_root)
         except Exception as e:
             print(f"> Cannot extract CPIO automatically: {e}")
             with open(os.path.join(out_dir, "vendor_ramdisk.img"), "wb") as r_out:
@@ -298,7 +307,7 @@ def unpack(args):
         with open(os.path.join(out_dir, "config.json"), "w") as out:
             json.dump(config, out, indent=4)
 
-    print(f"> Ramdisk path: {os.path.join(out_dir, 'ramdisk_root')}")
+    print(f"> Ramdisk path: {ramdisk_root}")
 
 
 def repack(args):
@@ -311,11 +320,14 @@ def repack(args):
     print(f"> Repacking vendor_boot V{hdr_version} with {fmt}...")
 
     ramdisk_dir = os.path.join(out_dir, "ramdisk_root")
-    if os.path.isdir(ramdisk_dir):
+    meta_path = os.path.join(ramdisk_dir, "ramdisk_meta.json")
+
+    if os.path.isdir(ramdisk_dir) and os.path.exists(meta_path):
         print("> Packing CPIO and compressing Ramdisk...")
         uncompressed = pack_cpio(ramdisk_dir)
         ramdisk_data = compress_ramdisk(uncompressed, fmt)
     else:
+        print("> Using raw vendor_ramdisk.img...")
         with open(os.path.join(out_dir, "vendor_ramdisk.img"), "rb") as f:
             ramdisk_data = f.read()
 
