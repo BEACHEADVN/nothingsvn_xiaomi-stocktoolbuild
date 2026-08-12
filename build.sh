@@ -1,3 +1,6 @@
+#!/bin/bash
+set -euo pipefail
+
 baserom="$1"
 repo_name="$2"
 prefix_id="$3"
@@ -9,14 +12,8 @@ tools_dir=${work_dir}/bin/$(uname)/$(uname -m)
 export PATH=${tools_dir}:$(pwd)/bin/$(uname)/$(uname -m)/:$PATH
 chmod 777 ${work_dir}/bin/*
 chmod 777 ${work_dir}/bin/Linux/x86_64/*
-source $work_dir/functions.sh
-if [[ $(git branch --show-current) == "beta" ]]; then
-    polyxver="$(cat Version)"
-	status="Development"
-else
-    polyxver="$(cat Version)"
-	status="Official"
-fi
+source "$work_dir/functions.sh"
+get_build_status
 
 check unzip aria2c 7z zip java zipalign python3 zstd bc xmlstarlet aapt
 
@@ -128,15 +125,15 @@ bash $work_dir/bin/ddevice/fetchINFO.sh
 # Gửi thông báo đang Build với đầy đủ Codename và Version
 python3 $work_dir/notify.py build "$repo_name" "$baserom" "$prefix_id" "$builder_name" "$builder_id"
 
-bash $work_dir/bin/ddevice/DEBLOAT/debloat.sh
-info "Done"
+bash "$work_dir/bin/ddevice/DEBLOAT/debloat.sh" || { error "Debloat failed"; exit 1; }
+info "Debloat Done"
 
-bash $work_dir/bin/modfile/OS1/insmod.sh
-bash $work_dir/bin/modfile/OS2/insmod.sh
-bash $work_dir/bin/modfile/OS3/insmod.sh
-bash $work_dir/bin/modfile/Universal/insfile.sh
-bash $work_dir/bin/modfile/UpdateFile/insupdate.sh
-bash $work_dir/bin/package/patchpackage.sh
+bash "$work_dir/bin/modfile/OS1/insmod.sh" || warn "OS1 mods skipped or failed"
+bash "$work_dir/bin/modfile/OS2/insmod.sh" || warn "OS2 mods skipped or failed"
+bash "$work_dir/bin/modfile/OS3/insmod.sh" || warn "OS3 mods skipped or failed"
+bash "$work_dir/bin/modfile/Universal/insfile.sh" || { error "Universal mods failed"; exit 1; }
+bash "$work_dir/bin/modfile/UpdateFile/insupdate.sh" || { error "UpdateFile failed"; exit 1; }
+bash "$work_dir/bin/package/patchpackage.sh" || { error "Package patching failed"; exit 1; }
 
 find "$work_dir/build/baserom/images/" -exec touch -t 200901010000.00 {} + 2> /dev/null || true
 

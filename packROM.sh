@@ -1,31 +1,14 @@
 work_dir=$(pwd)
-source $work_dir/functions.sh
+source "$work_dir/functions.sh"
 tools_dir=${work_dir}/bin/$(uname)/$(uname -m)
 export PATH=${tools_dir}:$(pwd)/bin/$(uname)/$(uname -m)/:$PATH
 super_list="vendor mi_ext odm odm_dlkm system system_dlkm vendor_dlkm product product_dlkm system_ext"
-os_type=$(cat $work_dir/bin/ddevice/os_type.txt)
-base_rom_code=$(cat $work_dir/bin/ddevice/base_rom_code.txt)
-androidVER=$(cat $work_dir/bin/ddevice/androidver.txt)
-rom_os=$(cat $work_dir/bin/ddevice/rom_os.txt)
-regionTYPE=$(cat $work_dir/bin/ddevice/device_type.txt)
-device_code=$(cat $work_dir/bin/ddevice/device_f.txt)
-getvar=$(cat $work_dir/bin/ddevice/device_f.txt)
-PACK_TYPE=$(cat $work_dir/bin/ddevice/fstype.txt)
 
-
-if [[ $(git branch --show-current) == "beta" ]]; then
-    polyxver="$(cat Version)"
-	status="Development"
-else
-    polyxver="$(cat Version)"
-	status="Official"
-fi
-
-if [[ $rom_os == "MIUI" ]];then
-    os_type="MIUI"
-else
-    os_type="HyperOS"
-fi
+# Load all device info & build status from shared functions
+load_device_info
+get_build_status
+os_type=$(get_os_type)
+getvar="$device_f"
 
 #Generate Super.img
 superSize=$(bash $work_dir/bin/getSuperSize.sh $getvar)
