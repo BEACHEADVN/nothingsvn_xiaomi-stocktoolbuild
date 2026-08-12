@@ -77,7 +77,7 @@ jobs:
           set -e
           set -o pipefail
           echo "[STEP] Build ROM" | tee -a build_action.log
-          sudo bash build.sh "$INPUT_URL" "${{ github.repository }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}" 2>&1 | tee -a build_action.log
+          sudo -E bash build.sh "$INPUT_URL" "${{ github.repository }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}" 2>&1 | tee -a build_action.log
 
       - name: Pack ROM
         run: |
@@ -85,7 +85,7 @@ jobs:
           set -o pipefail
           python notify.py pack "${{ github.repository }}" "${{ inputs.input_url }}" "xst" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
           echo "[STEP] Pack ROM" | tee -a build_action.log
-          sudo bash packROM.sh 2>&1 | tee -a build_action.log
+          sudo -E bash packROM.sh 2>&1 | tee -a build_action.log
 
       - name: Set up Rclone
         run: |
