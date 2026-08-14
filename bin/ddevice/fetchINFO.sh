@@ -25,6 +25,14 @@ else
     sdkLevel="unknown"
 fi
 
+if [ -f $work_dir/build/baserom/images/vendor/etc/init/hw/init.qcom.rc ]; then
+   CHIP="Snapdragon"
+   echo "$CHIP" > $work_dir/bin/script2flash/META-INF/A
+else
+   CHIP="Mediatek"
+   echo "$CHIP" > $work_dir/bin/script2flash/META-INF/A
+fi 
+
 # Get device market name
 name=$(find "$work_dir/build/baserom/images/" -type f -name "build.prop" -exec grep -h "ro.product.odm.marketname=" {} + 2>/dev/null | cut -d '=' -f 2 | head -n 1 | tr -d '\r')
 if [ -z "$name" ]; then

@@ -26,7 +26,7 @@ if unzip -l ${baserom} | grep -q "payload.bin"; then
     baserom_type="payload"
     echo $baserom_type > $work_dir/bin/ddevice/romtype.txt
     unpack "Found payload.bin file"
-    super_list="vendor mi_ext odm odm_dlkm system system_dlkm vendor_dlkm product product_dlkm system_ext"
+    super_list="vendor mi_ext odm odm_dlkm system system_dlkm vendor_dlkm product product_dlkm system_ext mi_product"
     unpack "ROM validation passed."
 elif unzip -l ${baserom} | grep -q "br$";then
     baserom_type="br"
@@ -106,6 +106,7 @@ for part in ${super_list}; do
     PACK_TYPE=$(cat $work_dir/bin/ddevice/fstype.txt)
 done
 echo $device_f > $work_dir/bin/ddevice/device_f.txt
+echo $device_f > $work_dir/bin/script2flash/META-INF/CNAME
 getvar=$(cat $work_dir/bin/ddevice/device_f.txt)
 
 rm -rf config
