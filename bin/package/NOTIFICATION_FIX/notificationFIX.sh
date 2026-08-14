@@ -17,6 +17,9 @@ elif [[ $AndroidVER == "15" ]];then
 elif [[ $AndroidVER == "16" ]];then
     bash $WORK_DIR/bin/package/NOTIFICATION_FIX/A16/PowerKeeper.sh
     bash $WORK_DIR/bin/package/NOTIFICATION_FIX/A16/SystemUI.sh
+elif [[ $AndroidVER == "17" ]];then
+    bash $WORK_DIR/bin/package/NOTIFICATION_FIX/A17/PowerKeeper.sh
+    bash $WORK_DIR/bin/package/NOTIFICATION_FIX/A17/SystemUI.sh
 fi
 
 fi
