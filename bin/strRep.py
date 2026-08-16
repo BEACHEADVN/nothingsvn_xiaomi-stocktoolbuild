@@ -36,10 +36,6 @@ def fileReplaceRange(filename, startIndex, endIndex, content):
 # Main script
 # Loading configs
 
-if len(sys.argv) < 3:
-	print("Usage: strRep.py <config.ini> <target_file>")
-	sys.exit(1)
-
 for i, arg in enumerate(sys.argv):
 	if i > 0:
 		ini = ConfigObj(str(sys.argv[1]))
@@ -51,4 +47,3 @@ for i, arg in enumerate(sys.argv):
 		startIndex = lineNumByPhrase(phraseStart, replaceFile)
 		endIndex = lineNumByPhrase(phraseEnd, replaceFile, 0, startIndex)
 		fileReplaceRange(replaceFile, startIndex, endIndex, replaceWith)
-

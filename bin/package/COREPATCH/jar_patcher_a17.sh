@@ -941,7 +941,7 @@ patch_services() {
     return 1
   fi
 
-  log "Starting Android 16 services.jar patch"
+  log "Starting Android 17 services.jar patch"
   local decompile_dir
   if [ $external_dir_flag -eq 1 ]; then
     log "Using existing services decompile dir: $external_dir"
@@ -951,6 +951,7 @@ patch_services() {
   fi
 
   # Apply feature-specific patches based on flags
+  #apply_services_signature_patches "$decompile_dir"
   #apply_services_disable_secure_flag "$decompile_dir"
 
   # Apply invoke-custom patches (common to all features)
@@ -1052,7 +1053,7 @@ patch_miui_services() {
     return 1
   fi
 
-  log "Starting Android 16 miui-services.jar patch"
+  log "Starting Android 17 miui-services.jar patch"
   local decompile_dir
   if [ $external_dir_flag -eq 1 ]; then
     log "Using existing miui-services decompile dir: $external_dir"
@@ -1121,7 +1122,7 @@ patch_miui_framework() {
     return 1
   fi
 
-  log "Starting Android 16 miui-framework.jar patch"
+  log "Starting Android 17 miui-framework.jar patch"
   local decompile_dir
   if [ $external_dir_flag -eq 1 ]; then
     log "Using existing miui-framework decompile dir: $external_dir"

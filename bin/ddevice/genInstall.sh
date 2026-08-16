@@ -43,7 +43,7 @@ cat <<EOF > "$OUTPUT_FILE"
         "Version": "${starxVER:-1.0}",
         "BuildDate": "${build_date}",
         "Author": "${builder_name:-Nothings}",
-        "BuildType": "PureST-Release"
+        "BuildType": "PureStock-Release"
     },
     "Directory": {
         "Firmware": "images",

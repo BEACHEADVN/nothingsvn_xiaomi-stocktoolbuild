@@ -1,33 +1,19 @@
 WORK_DIR=$(pwd)
-source "$WORK_DIR/functions.sh"
-
-APPLIST="$WORK_DIR/bin/ddevice/DEBLOAT/APPLIST.txt"
-if [[ ! -f "$APPLIST" ]]; then
-    warn "APPLIST.txt not found at: $APPLIST"
-    exit 0
-fi
+source $WORK_DIR/functions.sh
 
 debloat_apps=()
 while IFS= read -r line || [[ -n "$line" ]]; do
-    # Skip empty lines and comments
-    [[ -z "$line" || "$line" == \#* ]] && continue
     debloat_apps+=("$line")
-done < "$APPLIST"
+done < $WORK_DIR/bin/ddevice/DEBLOAT/APPLIST.txt
 
-if [[ ${#debloat_apps[@]} -eq 0 ]]; then
-    info "No apps to debloat (APPLIST.txt is empty)"
-    exit 0
-fi
-
-find "$WORK_DIR/build/baserom/images/product/" -type d -name "auto-install*" -exec rm -rf {} + 2>/dev/null
-find "$WORK_DIR/build/baserom/images/product/" -path "*/app/Updater" -type d -exec rm -rf {} + 2>/dev/null
-find "$WORK_DIR/build/baserom/images/product/" -path "*/permissions/cn.google.services.xml" -type f -delete 2>/dev/null
-
+rm -rf $WORK_DIR/build/baserom/images/product/etc/auto-install*
+rm -rf $WORK_DIR/build/baserom/images/product/app/Updater
+rm -rf $WORK_DIR/build/baserom/images/product/etc/permissions/cn.google.services.xml
 for debloat_app in "${debloat_apps[@]}"; do
-    # Find the app directory in system, product, and mi_ext directories
-    app_dirs=$(find "$WORK_DIR/build/baserom/images/system/" -type d -name "*${debloat_app}*" 2>/dev/null)
-    app_dirs2=$(find "$WORK_DIR/build/baserom/images/product/" -type d -name "*${debloat_app}*" 2>/dev/null)
-    app_dirs3=$(find "$WORK_DIR/build/baserom/images/mi_ext" -type d -name "*${debloat_app}*" 2>/dev/null)
+    # Find the app directory in both system and product directories
+    app_dirs=$(find build/baserom/images/system/ -type d -name "*$debloat_app*" 2>/dev/null)
+    app_dirs2=$(find build/baserom/images/product/ -type d -name "*$debloat_app*" 2>/dev/null)
+    app_dirs3=$(find build/baserom/images/mi_ext -type d -name "*$debloat_app*" 2>/dev/null)
     # Combine the directories into one list
     all_app_dirs=($app_dirs $app_dirs2 $app_dirs3)
 
@@ -40,3 +26,4 @@ for debloat_app in "${debloat_apps[@]}"; do
     done
 done
 info "Debloat Done"
+

@@ -861,7 +861,6 @@ patch_services() {
   decompile_jar "$services_path"
 
   # Apply feature-specific patches based on flags
-
   # Modify invoke-custom methods (common to all features)
   modify_invoke_custom_methods "$decompile_dir"
 

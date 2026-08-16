@@ -1,6 +1,3 @@
-#!/bin/bash
-set -euo pipefail
-
 baserom="$1"
 repo_name="$2"
 prefix_id="$3"
@@ -8,20 +5,27 @@ export builder_name="$4"
 builder_id="$5"
 work_dir=$(pwd)
 # Import functions
-tools_dir=${work_dir}/bin/$(uname)/$(uname -m)
-export PATH=${tools_dir}:$(pwd)/bin/$(uname)/$(uname -m)/:$PATH
+tools_dir=${work_dir}/bin/$(uname)/$(uname -m)export PATH=$(pwd)/bin/$(uname)/$(uname -m)/:$PATH
 chmod 777 ${work_dir}/bin/*
 chmod 777 ${work_dir}/bin/Linux/x86_64/*
-source "$work_dir/functions.sh"
-get_build_status
+source $work_dir/functions.sh
+if [[ $(git branch --show-current) == "beta" ]]; then
+    polyxver="$(cat Version)"
+	status="Development"
+else
+    polyxver="$(cat Version)"
+	status="Official"
+fi
 
 check unzip aria2c 7z zip java zipalign python3 zstd bc xmlstarlet aapt
 
 rm -rf $work_dir/out
 rm -rf $work_dir/build
 
+python3 $work_dir/notify.py download "$repo_name" "$baserom" "$prefix_id" "$builder_name" "$builder_id"
 source "$work_dir/bin/ddevice/getROM.sh" "$baserom"
 
+python3 $work_dir/notify.py unpack "$repo_name" "$baserom" "$prefix_id" "$builder_name" "$builder_id"
 if unzip -l ${baserom} | grep -q "payload.bin"; then
     baserom_type="payload"
     echo $baserom_type > $work_dir/bin/ddevice/romtype.txt
@@ -77,7 +81,7 @@ fi
 
 if [[ ${baserom_type} == 'payload' ]]; then
     unpack "Unpacking payload.bin"
-    payload-dumper-go -o build/baserom/images/ build/baserom/payload.bin >/dev/null 2>&1 || error "Unpacking payload.bin failed"    
+    payload-extract extract -o build/baserom/images/ build/baserom/payload.bin >/dev/null 2>&1 || error "Unpacking payload.bin failed"    
 elif [[ ${baserom_type} == 'br' ]];then
     super_list=$(cat build/baserom/dynamic_partitions_op_list | grep "add " | awk '{ print $2 }')
     unpack "Unpacking new.dat.br"
@@ -126,15 +130,12 @@ bash $work_dir/bin/ddevice/fetchINFO.sh
 # Gửi thông báo đang Build với đầy đủ Codename và Version
 python3 $work_dir/notify.py build "$repo_name" "$baserom" "$prefix_id" "$builder_name" "$builder_id"
 
-bash "$work_dir/bin/ddevice/DEBLOAT/debloat.sh" || { error "Debloat failed"; exit 1; }
-info "Debloat Done"
+bash $work_dir/bin/ddevice/DEBLOAT/debloat.sh
+info "Done"
 
-bash "$work_dir/bin/modfile/OS1/insmod.sh" || warn "OS1 mods skipped or failed"
-bash "$work_dir/bin/modfile/OS2/insmod.sh" || warn "OS2 mods skipped or failed"
-bash "$work_dir/bin/modfile/OS3/insmod.sh" || warn "OS3 mods skipped or failed"
-bash "$work_dir/bin/modfile/Universal/insfile.sh" || { error "Universal mods failed"; exit 1; }
-bash "$work_dir/bin/modfile/UpdateFile/insupdate.sh" || { error "UpdateFile failed"; exit 1; }
-bash "$work_dir/bin/package/patchpackage.sh" || { error "Package patching failed"; exit 1; }
+bash $work_dir/bin/modfile/Universal/insfile.sh
+bash $work_dir/bin/modfile/UpdateFile/insupdate.sh
+bash $work_dir/bin/package/patchpackage.sh
 
 find "$work_dir/build/baserom/images/" -exec touch -t 200901010000.00 {} + 2> /dev/null || true
 

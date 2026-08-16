@@ -83,103 +83,6 @@ patch() {
 
 
 
-# --- Shared Utility Functions ---
-
-# Safely read a file's content, returning a fallback value if the file
-# does not exist or is empty. Prevents errors from missing .txt configs.
-# Usage: value=$(safe_cat "/path/to/file.txt" "default_value")
-safe_cat() {
-    local file="$1"
-    local fallback="${2:-}"
-    if [[ -f "$file" ]] && [[ -s "$file" ]]; then
-        cat "$file" | tr -d '\r\n'
-    else
-        echo "$fallback"
-    fi
-}
-
-# Load all device information from bin/ddevice/*.txt into exported
-# environment variables. Call once per script instead of repeating
-# cat commands everywhere.
-# Usage: load_device_info
-load_device_info() {
-    local work_dir
-    work_dir=$(pwd)
-    local dd="$work_dir/bin/ddevice"
-
-    export device_code=$(safe_cat "$dd/device_code.txt")
-    export device_f=$(safe_cat "$dd/device_f.txt")
-    export base_rom_code=$(safe_cat "$dd/base_rom_code.txt")
-    export rom_os=$(safe_cat "$dd/rom_os.txt")
-    export os_type=$(safe_cat "$dd/os_type.txt")
-    export regionTYPE=$(safe_cat "$dd/device_type.txt")
-    export androidVER=$(safe_cat "$dd/androidver.txt")
-    export PACK_TYPE=$(safe_cat "$dd/fstype.txt")
-    export baserom_type=$(safe_cat "$dd/romtype.txt")
-    export sdkLevel=$(safe_cat "$dd/sdkLevel.txt")
-}
-
-# Determine build version and status from git branch.
-# Sets global variables: polyxver, status
-# Usage: get_build_status
-get_build_status() {
-    local work_dir
-    work_dir=$(pwd)
-    polyxver=$(safe_cat "$work_dir/Version" "1.0")
-    if [[ $(git branch --show-current 2>/dev/null) == "beta" ]]; then
-        status="Development"
-    else
-        status="Official"
-    fi
-    export polyxver
-    export status
-}
-
-# Determine OS type string from rom_os variable.
-# Returns "MIUI" or "HyperOS" via stdout.
-# Usage: os_type=$(get_os_type)
-get_os_type() {
-    local ros="${rom_os:-$(safe_cat "$(pwd)/bin/ddevice/rom_os.txt")}"
-    if [[ "$ros" == "MIUI" ]]; then
-        echo "MIUI"
-    else
-        echo "HyperOS"
-    fi
-}
-
-# Execute all .sh scripts found within a directory, skipping any
-# whose basename (without .sh) matches the skip list.
-# Replaces the duplicated find-loop pattern in 5+ insmod/insfile scripts.
-# Usage: run_scripts_in_dir "/path/to/dir" "skip_name1" "skip_name2" ...
-run_scripts_in_dir() {
-    local target_dir="$1"
-    shift
-    local -a skip_list=("$@")
-
-    if [[ ! -d "$target_dir" ]]; then
-        warn "Directory not found: $target_dir"
-        return 1
-    fi
-
-    while IFS= read -r -d '' script; do
-        local base
-        base="$(basename "$script" .sh)"
-
-        local should_skip=false
-        for skip_name in "${skip_list[@]}"; do
-            if [[ "$base" == "$skip_name" ]]; then
-                should_skip=true
-                break
-            fi
-        done
-
-        if [[ "$should_skip" == false ]]; then
-            info "Executing: $script"
-            bash "$script" || warn "Script failed: $script"
-        fi
-    done < <(find "$target_dir" -type f -name "*.sh" -print0)
-}
-
 # Check for required dependencies
 exists() {
     command -v "$1" > /dev/null 2>&1
@@ -206,6 +109,10 @@ is_property_exists () {
 }
 
 disable_avb_verify() {
+    if [[ ! -d "$1" ]]; then
+        warn "No such directory: $1"
+        return
+    fi
     fstab_files=$(find "$1" -type f -name "*fstab*")
     info "Disabling avb_verify in files: $fstab_files"
     if [[ -z "$fstab_files" ]]; then
@@ -215,15 +122,17 @@ disable_avb_verify() {
     for fstab in $fstab_files; do
         if [[ -f $fstab ]]; then
             info "Processing $fstab"
-		    sed -i "s/,avb_keys=.*avbpubkey//g" $fstab
-            sed -i "s/,avb=vbmeta_system//g" $fstab
-		    sed -i "s/,avb=vbmeta_vendor//g" $fstab
-            sed -i "s/,avb=vbmeta//g" $fstab
-            sed -i "s/,avb//g" $fstab
-            sed -i 's/,avb.*system//g' $fstab
-            sed -i 's/,avb,/,/g' $fstab
-            sed -i 's/,avb=.*a,/,/g' $fstab
-            sed -i 's/,avb_keys.*key//g' $fstab
+            # Drop the whole avb / avb_keys / avb=<vbmeta_partition> token in one
+            # go. Chaining partial patterns (",avb=vbmeta" then ",avb") leaves
+            # the tail of longer flags behind - e.g. avb=vbmeta_system_ext turns
+            # into a stray "_system_ext" flag - and fs_mgr then fails to parse
+            # the entry, so first_stage_mount aborts and the device boot loops.
+            # Both forms below require a neighbouring flag, so the fs_mgr field
+            # can never be emptied out completely.
+            sed -E -i \
+                -e ':a' -e 's/,avb(_keys)?(=[^,[:space:]]*)?(,|[[:space:]]|$)/\3/' -e 'ta' \
+                -e ':b' -e 's/([[:space:]])avb(_keys)?(=[^,[:space:]]*)?,/\1/' -e 'tb' \
+                "$fstab"
         else
             warn "$fstab not found, please check it manually"
         fi
@@ -268,59 +177,14 @@ extract_partition() {
         elif [[ $(${WORK_DIR}/bin/Linux/x86_64/gettype -i ${part_img}) == "erofs" ]]; then
             pack_type="EROFS"
             echo $pack_type > ${WORK_DIR}/bin/ddevice/fstype.txt
-            extract.erofs -x -i ${part_img} -o ${target_dir}/${part_name%.*} > /dev/null 2>&1 || { error "Extracting ${part_name} failed." ; exit 1; }
+            extract.erofs -x -i ${part_img} -o ${target_dir} > /dev/null 2>&1 || { error "Extracting ${part_name} failed." ; exit 1; }
             unpack "File ${part_name} extracted."
             rm -rf ${part_img}
-            # Create compatibility symlinks for EROFS double-nested structure
-            create_compat_symlinks "${target_dir}/${part_name%.*}"
         else
             error "Unable to handle img, exit."
             exit 1
         fi
     fi    
-}
-
-# Create compatibility symlinks after EROFS extraction.
-# EROFS extracts partition content into a nested subdirectory
-# (e.g., images/product/ contains product/ inside).
-# Many scripts reference paths without the nested layer, so we
-# create symlinks from the parent to the nested subdirectories.
-create_compat_symlinks() {
-    local part_dir="$1"
-    local part_basename=$(basename "$part_dir")
-
-    # The nested directory (e.g., images/product/product/)
-    local nested_dir="${part_dir}/${part_basename}"
-
-    if [[ ! -d "$nested_dir" ]]; then
-        return
-    fi
-
-    # For non-system partitions (product, vendor, system_ext, odm, mi_ext, etc.)
-    # Symlink subdirectories from parent level for compatibility
-    # e.g., images/product/etc -> images/product/product/etc
-    if [[ "$part_basename" != "system" ]]; then
-        for item in "$nested_dir"/*; do
-            local item_name=$(basename "$item")
-            local link_target="${part_dir}/${item_name}"
-            if [[ ! -e "$link_target" ]] && [[ "$item_name" != "$part_basename" ]]; then
-                ln -sf "${part_basename}/${item_name}" "$link_target" 2>/dev/null || true
-            fi
-        done
-    else
-        # For system partition: content is at images/system/system/system/
-        # Scripts expect images/system/system/build.prop etc.
-        local sys_inner="${nested_dir}/system"
-        if [[ -d "$sys_inner" ]]; then
-            for item in "$sys_inner"/*; do
-                local item_name=$(basename "$item")
-                local link_target="${nested_dir}/${item_name}"
-                if [[ ! -e "$link_target" ]]; then
-                    ln -sf "system/${item_name}" "$link_target" 2>/dev/null || true
-                fi
-            done
-        fi
-    fi
 }
 
 setprop_rc() {
@@ -452,4 +316,39 @@ mvdir() {
     done
 
     echo "Moved all .smali files from $folder_name to $target_folder"
+}
+
+patch_file_context() {
+    local partition="$1"
+    local file_path="$2"
+    local context="$3"
+    local images_dir="$WORK_DIR/build/baserom/images"
+    local config_dir="$images_dir/config"
+    
+    local config_fc="$config_dir/${partition}_file_contexts"
+    if [ -f "$config_fc" ]; then
+        if ! grep -q "$file_path" "$config_fc"; then
+            echo "$file_path $context" >> "$config_fc"
+        fi
+    fi
+
+    local image_fc="$images_dir/$partition/etc/selinux/${partition}_file_contexts"
+    if [ -f "$image_fc" ]; then
+        if ! grep -q "$file_path" "$image_fc"; then
+            echo "$file_path $context" >> "$image_fc"
+        fi
+    fi
+}
+
+patch_sepolicy() {
+    local partition="$1"
+    local rule="$2"
+    local images_dir="$WORK_DIR/build/baserom/images"
+    
+    local cil_file="$images_dir/$partition/etc/selinux/${partition}_sepolicy.cil"
+    if [ -f "$cil_file" ]; then
+        if ! grep -q -F "$rule" "$cil_file"; then
+            echo "$rule" >> "$cil_file"
+        fi
+    fi
 }

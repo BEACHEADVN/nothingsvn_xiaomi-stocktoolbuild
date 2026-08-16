@@ -849,7 +849,6 @@ patch_services() {
   decompile_jar "$services_path"
 
   # Apply feature-specific patches based on flags
-  apply_services_signature_patches "$decompile_dir"
 
   # Modify invoke-custom methods (common to all features)
   modify_invoke_custom_methods "$decompile_dir"
@@ -1020,6 +1019,7 @@ ensure_tools || exit 1
 
 # Patch requested JARs
 patch_framework
+patch_services
 patch_miui_services
 patch_miui_framework
 
