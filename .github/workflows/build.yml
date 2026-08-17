@@ -69,9 +69,7 @@ jobs:
           sudo pip3 install ConfigObj 2>&1 | tee -a build_action.log
           sudo pip3 install telebot 2>&1 | tee -a build_action.log
           sudo pip3 install setuptools 2>&1 | tee -a build_action.log
-          # bin/vbpatcher.py needs the python bindings, not just the lz4/zstd CLI
-          sudo pip3 install lz4 2>&1 | tee -a build_action.log
-          sudo pip3 install zstandard 2>&1 | tee -a build_action.log
+          sudo pip3 install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client 2>&1 | tee -a build_action.log
 
       - name: Grant file permissions
         run: |
