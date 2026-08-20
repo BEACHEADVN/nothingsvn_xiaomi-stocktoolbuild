@@ -157,3 +157,4 @@ talkback
 HealthConnectController@BP2A.250605.031.A3
 Gemini
 MIUICompassGlobal
+Calculator
