@@ -1,8 +1,14 @@
+#chinh-sua-genInstall.sh
 #!/bin/bash
 work_dir=$(pwd)
 
 # Load device information
 device_code=$(cat $work_dir/bin/ddevice/device_code.txt 2>/dev/null)
+
+codename="$device_code"
+for s in EEAGlobal EEAGLOBAL Global GLOBAL EEA IN RU TR TW ID JP KR; do
+    codename="${codename%$s}"
+done
 name=$(cat $work_dir/bin/ddevice/name_devices.txt 2>/dev/null)
 rom_os=$(cat $work_dir/bin/ddevice/rom_os.txt 2>/dev/null)
 base_rom_code=$(cat $work_dir/bin/ddevice/base_rom_code.txt 2>/dev/null)
@@ -31,7 +37,7 @@ cat <<EOF > "$OUTPUT_FILE"
     "Devices": {
         "Name": "${name:-Unknown}",
         "Brand": "Xiaomi",
-        "Codename": "${device_code}"
+        "Codename": "${codename}"
     },
     "ROM": {
         "Type": "${rom_type}",

@@ -1,7 +1,7 @@
 work_dir=$(pwd)
 source $work_dir/functions.sh
 RCLONE_CONFIG_1DRIVE="$work_dir/rclone.conf"
-ONEDRIVE_REMOTE="starxONEDRIVE"
+ONEDRIVE_REMOTE="nothings-toolbuild"
 os_type=$(cat $work_dir/bin/ddevice/os_type.txt)
 base_rom_code=$(cat $work_dir/bin/ddevice/base_rom_code.txt)
 androidVER=$(cat $work_dir/bin/ddevice/androidver.txt)
@@ -101,13 +101,10 @@ fi
 
 # Google Drive
 upload "Uploading to Google Drive..."
-python $work_dir/upload_rom_api.py "$output_file" --folder_id "1AyblSimZU3gz9GlsA62UMuyQJFCeYGN8" --path "${uploaddir}/${polyxver}/${device_code}/" || {
+python $work_dir/upload_rom_api.py "$output_file" --folder_id "1aJw0uWIMD7Yc1n4O1mjbI0YLHjRevfxl" --path "${uploaddir}/${polyxver}/${device_code}/" || {
     upload "Error uploading file to Google Drive"
-    exit 1
 }
 
 upload "Clean Workflow.."
-rm -rf $work_dir/out
-rm -rf $work_dir/build
 
 upload "Build ${os_type}_${polyxver} for ${device_code} successfull!"
